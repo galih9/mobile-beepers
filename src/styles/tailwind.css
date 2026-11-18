@@ -1,1 +1,201 @@
 @import "tailwindcss";
+
+:root {
+	color-scheme: dark;
+	--target-size: 24px;
+	--studio-bg: #04070d;
+	--studio-surface: #0b101b;
+	--studio-accent: #00c7ff;
+}
+
+@media (pointer: coarse) {
+	:root {
+		--target-size: 44px;
+	}
+}
+
+html {
+	background-color: var(--studio-bg);
+	scroll-padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+	scrollbar-color: #475569 #0b101b;
+}
+
+body {
+	margin: 0;
+	background-color: var(--studio-bg);
+	color: #f8fafc;
+	overflow-wrap: break-word;
+	font-family:
+		"Inter",
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		BlinkMacSystemFont,
+		"Segoe UI",
+		sans-serif;
+	-webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+	background-color: #00c7ff;
+	color: #020617;
+}
+
+h1,
+h2,
+h3 {
+	text-wrap: balance;
+}
+
+p,
+li {
+	text-wrap: pretty;
+}
+
+input:not(input[type="range"]):user-invalid {
+	border-color: #f43f5e;
+	outline: 1px solid #f43f5e;
+}
+
+.studio-chrome-text {
+	user-select: none;
+}
+
+.no-scrollbar {
+	scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+.safe-top-bar {
+	padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
+	padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+	padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+.safe-bottom-bar {
+	padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+	padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+	padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+}
+
+/* Native <dialog> modal scroll containment (see modern-web-guidance: dialog) */
+dialog:modal {
+	overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+	overflow: hidden;
+	overscroll-behavior: contain;
+	background: rgba(2, 6, 23, 0.8);
+	backdrop-filter: blur(4px);
+}
+
+/* Brand-consistent accessible range slider (see modern-web-guidance: slider) */
+input[type="range"].chip-slider {
+	--slider-track-size: 0.375rem;
+	--slider-thumb-size: 0.95rem;
+	--slider-track-radius: 999px;
+	--slider-thumb-radius: 999px;
+	--slider-track-color: #1e293b;
+	--slider-fill-color: var(--slider-accent, #00c7ff);
+	--slider-thumb-color: #f8fafc;
+	--slider-direction: to right;
+	--attr-min: 0;
+	--attr-max: 100;
+	--control-value: 50;
+	--slider-progress: calc(
+		progress(var(--control-value), var(--attr-min), var(--attr-max)) * 100%
+	);
+
+	appearance: none;
+	inline-size: 100%;
+	block-size: 1.5rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	cursor: pointer;
+	touch-action: pan-y;
+}
+
+@supports not (opacity: progress(1, 0, 100)) {
+	input[type="range"].chip-slider {
+		--slider-progress: calc(
+			(var(--control-value) - var(--attr-min)) /
+				(var(--attr-max) - var(--attr-min)) * 100%
+		);
+	}
+}
+
+input[type="range"].chip-slider:focus-visible {
+	outline: 2px solid var(--slider-fill-color);
+	outline-offset: 3px;
+	border-radius: 6px;
+}
+
+input[type="range"].chip-slider::-webkit-slider-runnable-track {
+	block-size: var(--slider-track-size);
+	border: 0;
+	border-radius: var(--slider-track-radius);
+	background: linear-gradient(
+		var(--slider-direction),
+		var(--slider-fill-color) var(--slider-progress),
+		var(--slider-track-color) var(--slider-progress)
+	);
+}
+
+input[type="range"].chip-slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	inline-size: var(--slider-thumb-size);
+	block-size: var(--slider-thumb-size);
+	margin-block-start: calc(
+		(var(--slider-track-size) - var(--slider-thumb-size)) / 2
+	);
+	border: 2px solid var(--slider-fill-color);
+	border-radius: var(--slider-thumb-radius);
+	background: var(--slider-thumb-color);
+	box-shadow: 0 0 8px rgba(0, 199, 255, 0.35);
+}
+
+input[type="range"].chip-slider::-moz-range-track {
+	block-size: var(--slider-track-size);
+	border: 0;
+	border-radius: var(--slider-track-radius);
+	background: var(--slider-track-color);
+}
+
+input[type="range"].chip-slider::-moz-range-progress {
+	block-size: var(--slider-track-size);
+	border-radius: var(--slider-track-radius);
+	background: var(--slider-fill-color);
+}
+
+input[type="range"].chip-slider::-moz-range-thumb {
+	inline-size: var(--slider-thumb-size);
+	block-size: var(--slider-thumb-size);
+	border: 2px solid var(--slider-fill-color);
+	border-radius: var(--slider-thumb-radius);
+	background: var(--slider-thumb-color);
+}
+
+/* Vertical octave scrollbar slider along the right edge of UltraBox Piano Roll */
+input[type="range"].octave-vertical-slider {
+	writing-mode: vertical-lr;
+	direction: rtl;
+	accent-color: #00c7ff;
+	inline-size: 1.5rem;
+	block-size: 100%;
+	margin: 0;
+	cursor: ns-resize;
+	touch-action: none;
+}
+
+input[type="range"].octave-vertical-slider:focus-visible {
+	outline: 2px solid #00c7ff;
+	outline-offset: 2px;
+}
