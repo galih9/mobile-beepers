@@ -109,12 +109,15 @@ export const SongSlidersSection = ({
 
 			<SliderControl
 				inline
-				formatValue={(value): string => `${Math.round(value)} Bars`}
 				label="Song Length"
 				max={32}
-				min={4}
+				min={1}
 				step={1}
 				value={song.totalBars}
+				formatValue={(value): string => {
+					const rounded = Math.round(value);
+					return rounded === 1 ? "1 Bar" : `${rounded} Bars`;
+				}}
 				onChange={onSetTotalBars}
 			/>
 

@@ -40,6 +40,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const removeNoteAt = useChiptuneStore((state) => state.removeNoteAt);
 	const resizeNoteAt = useChiptuneStore((state) => state.resizeNoteAt);
 	const moveNoteAt = useChiptuneStore((state) => state.moveNoteAt);
+	const moveNotesBatch = useChiptuneStore((state) => state.moveNotesBatch);
 	const cycleNotePitchBend = useChiptuneStore(
 		(state) => state.cycleNotePitchBend
 	);
@@ -314,6 +315,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 							onCycleNoteFade={cycleNoteFadeAt}
 							onCyclePitchBend={cycleNotePitchBend}
 							onMoveNote={moveNoteAt}
+							onMoveNotesBatch={moveNotesBatch}
 							onRemoveNote={removeNoteAt}
 							onResizeNote={resizeNoteAt}
 							onSetNotePitchBend={setNotePitchBendAt}

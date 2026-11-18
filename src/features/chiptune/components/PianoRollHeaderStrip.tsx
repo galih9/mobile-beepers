@@ -87,7 +87,7 @@ export const PianoRollHeaderStrip = ({
 				>
 					<button
 						aria-pressed={activeTool === "select"}
-						title="Select and listen to notes without modifying them"
+						title="Drag on grid to box-select multiple notes, then drag selected notes higher, lower, or across steps"
 						type="button"
 						className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
 							activeTool === "select"

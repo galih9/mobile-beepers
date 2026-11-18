@@ -4,13 +4,19 @@ import type {
 	InstrumentConfiguration,
 	LoopMode,
 	MobileWorkspaceTab,
+	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
+	SfxGeneratorArchetype,
 	SongProject,
+	StudioMode,
 } from "../types/music";
 
 export interface PersistedChiptuneState {
+	studioMode?: StudioMode;
 	song: SongProject;
+	musicProjectBackup?: SongProject | null;
+	sfxProjectBackup?: SongProject | null;
 	savedSongs: Array<SongProject>;
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
@@ -19,7 +25,10 @@ export interface PersistedChiptuneState {
 }
 
 export interface ChiptuneStoreState {
+	studioMode: StudioMode;
 	song: SongProject;
+	musicProjectBackup: SongProject | null;
+	sfxProjectBackup: SongProject | null;
 	savedSongs: Array<SongProject>;
 	selectedChannelIndex: number;
 	selectedBarIndex: number;
@@ -86,6 +95,10 @@ export interface ChiptuneStoreState {
 		toStep: number,
 		toPitch: number
 	) => void;
+	moveNotesBatch: (
+		updates: Array<NoteBatchMoveUpdate>,
+		deduplicateUnselected?: boolean
+	) => void;
 	cycleNotePitchBend: (step: number, pitch: number) => void;
 	setNotePitchBendAt: (
 		step: number,
@@ -103,6 +116,11 @@ export interface ChiptuneStoreState {
 		updates: Partial<InstrumentConfiguration>
 	) => void;
 	applyInstrumentPreset: (channelIndex: number, presetId: string) => void;
+
+	setStudioMode: (mode: StudioMode) => void;
+	loadSfxPreset: (presetId: string) => void;
+	createNewSfxProject: () => void;
+	generateSfxPattern: (archetype?: SfxGeneratorArchetype) => void;
 
 	loadDemoSong: (demoId: string) => void;
 	createNewProject: () => void;

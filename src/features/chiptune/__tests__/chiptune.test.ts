@@ -10,6 +10,7 @@ import {
 	midiToFrequency,
 	midiToNoteName,
 } from "../constants/scalesAndNotes";
+import { SFX_PRESETS } from "../constants/sfxPresets";
 import { getActivePatternForChannel } from "../store/songHelpers";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 
@@ -105,6 +106,26 @@ describe("useChiptuneStore", () => {
 		expect(state.song.bpm).toBe(158);
 	});
 
+	it("loads Neon Club House 125 as a ~1-minute 125 BPM 32-bar house loop", () => {
+		useChiptuneStore.getState().loadDemoSong("demo-house-125");
+		const { song } = useChiptuneStore.getState();
+		expect(song.title).toBe("Neon Club House 125");
+		expect(song.bpm).toBe(125);
+		expect(song.totalBars).toBe(32);
+		expect(song.loopStartBar).toBe(0);
+		expect(song.loopEndBar).toBe(31);
+
+		const loopBars = song.loopEndBar - song.loopStartBar + 1;
+		const loopDurationSeconds = (loopBars * song.beatsPerBar * 60) / song.bpm;
+		expect(loopDurationSeconds).toBeCloseTo(61.44, 2);
+
+		expect(song.channels).toHaveLength(5);
+		for (const channel of song.channels) {
+			expect(channel.barSequence).toHaveLength(32);
+			expect(Object.keys(channel.patterns).length).toBeGreaterThan(0);
+		}
+	});
+
 	it("updates and clamps purple loop range bounds", () => {
 		useChiptuneStore.getState().setLoopRange(2, 6);
 		let state = useChiptuneStore.getState();
@@ -138,6 +159,202 @@ describe("useChiptuneStore", () => {
 		expect(pattern?.notes[0]?.step).toBe(14);
 		expect(pattern?.notes[0]?.pitch).toBe(67);
 		expect(pattern?.notes[0]?.duration).toBe(2);
+	});
+
+	it("moves multiple selected notes together to higher and lower pitches while preserving intervals", () => {
+		const store = useChiptuneStore.getState();
+		store.clearCurrentPattern();
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 60,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+		store.addOrReplaceNote({
+			step: 2,
+			pitch: 64,
+			duration: 3,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+		store.addOrReplaceNote({
+			step: 4,
+			pitch: 67,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+
+		let state = useChiptuneStore.getState();
+		let notes =
+			getActivePatternForChannel(
+				state.song.channels[state.selectedChannelIndex],
+				state.selectedBarIndex
+			)?.notes ?? [];
+		expect(notes).toHaveLength(3);
+
+		// Move all 3 notes higher by +5 semitones and +2 steps
+		useChiptuneStore.getState().moveNotesBatch(
+			notes.map((note) => ({
+				id: note.id,
+				step: note.step + 2,
+				pitch: note.pitch + 5,
+			}))
+		);
+
+		state = useChiptuneStore.getState();
+		notes =
+			getActivePatternForChannel(
+				state.song.channels[state.selectedChannelIndex],
+				state.selectedBarIndex
+			)?.notes ?? [];
+		expect(notes).toHaveLength(3);
+		expect(notes.map((note) => [note.step, note.pitch, note.duration])).toEqual(
+			[
+				[2, 65, 2],
+				[4, 69, 3],
+				[6, 72, 2],
+			]
+		);
+
+		// Move all 3 notes lower by -7 semitones and -1 step
+		useChiptuneStore.getState().moveNotesBatch(
+			notes.map((note) => ({
+				id: note.id,
+				step: note.step - 1,
+				pitch: note.pitch - 7,
+			}))
+		);
+
+		state = useChiptuneStore.getState();
+		notes =
+			getActivePatternForChannel(
+				state.song.channels[state.selectedChannelIndex],
+				state.selectedBarIndex
+			)?.notes ?? [];
+		expect(notes.map((note) => [note.step, note.pitch, note.duration])).toEqual(
+			[
+				[1, 58, 2],
+				[3, 62, 3],
+				[5, 65, 2],
+			]
+		);
+	});
+
+	it("preserves all notes in a chord when moved onto pitches formerly occupied by siblings", () => {
+		const store = useChiptuneStore.getState();
+		store.clearCurrentPattern();
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 60,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 64,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 67,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+
+		const initialNotes =
+			getActivePatternForChannel(
+				useChiptuneStore.getState().song.channels[0],
+				0
+			)?.notes ?? [];
+		expect(initialNotes).toHaveLength(3);
+
+		// Shift chord so C4->E4 (64), E4->G4 (67), G4->B4 (71)
+		const targetPitches = [64, 67, 71];
+		useChiptuneStore.getState().moveNotesBatch(
+			initialNotes.map((note, index) => ({
+				id: note.id,
+				step: note.step,
+				pitch: targetPitches[index] ?? note.pitch,
+			}))
+		);
+
+		const updatedNotes =
+			getActivePatternForChannel(
+				useChiptuneStore.getState().song.channels[0],
+				0
+			)?.notes ?? [];
+		expect(updatedNotes).toHaveLength(3);
+		expect(updatedNotes.map((note) => note.pitch)).toEqual([64, 67, 71]);
+	});
+
+	it("supports non-destructive live preview during drag and deduplicates unselected notes on commit", () => {
+		const store = useChiptuneStore.getState();
+		store.clearCurrentPattern();
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 60,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 64,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+
+		const initialNotes =
+			getActivePatternForChannel(
+				useChiptuneStore.getState().song.channels[0],
+				0
+			)?.notes ?? [];
+		const selectedNote = initialNotes.find((note) => note.pitch === 60);
+		expect(selectedNote).toBeDefined();
+
+		// Dragging over unselected pitch 64 without committing preserves unselected note
+		useChiptuneStore.getState().moveNotesBatch(
+			[
+				{
+					id: selectedNote?.id ?? "",
+					step: 0,
+					pitch: 64,
+				},
+			],
+			false
+		);
+		let currentNotes =
+			getActivePatternForChannel(
+				useChiptuneStore.getState().song.channels[0],
+				0
+			)?.notes ?? [];
+		expect(currentNotes).toHaveLength(2);
+
+		// Committing at pitch 64 deduplicates the overlapped unselected note
+		useChiptuneStore.getState().moveNotesBatch(
+			[
+				{
+					id: selectedNote?.id ?? "",
+					step: 0,
+					pitch: 64,
+				},
+			],
+			true
+		);
+		currentNotes =
+			getActivePatternForChannel(
+				useChiptuneStore.getState().song.channels[0],
+				0
+			)?.notes ?? [];
+		expect(currentNotes).toHaveLength(1);
+		expect(currentNotes[0]?.id).toBe(selectedNote?.id);
 	});
 
 	it("reorders channels and keeps selectedChannelIndex synced", () => {
@@ -424,5 +641,134 @@ describe("chiptuneAgentApi", () => {
 		const registered = registerChiptuneAgentApi();
 		expect(window.chiptuneApi).toBe(registered);
 		expect(window.ultrabeepApi).toBe(registered);
+	});
+
+	it("exposes SFX Creator mode and short-track controls via chiptuneAgentApi", () => {
+		useChiptuneStore.getState().resetEverything();
+		expect(chiptuneAgentApi.getStudioMode()).toBe("music");
+
+		const nextMode = chiptuneAgentApi.setStudioMode("sfx");
+		expect(nextMode).toBe("sfx");
+
+		const presets = chiptuneAgentApi.listSfxPresets();
+		expect(presets.length).toBeGreaterThanOrEqual(8);
+		expect(presets.some((preset) => preset.id === "sfx-ray-gun")).toBe(true);
+
+		const loaded = chiptuneAgentApi.loadSfxPreset("sfx-winning");
+		expect(loaded.title).toBe("Winning Fanfare");
+		expect(loaded.totalBars).toBe(2);
+
+		const generated = chiptuneAgentApi.generateSfx("laser");
+		expect(generated.length).toBeGreaterThan(0);
+
+		const shortTrack = chiptuneAgentApi.composeSong({
+			title: "1-Bar Zap",
+			bpm: 190,
+			totalBars: 1,
+			channels: [
+				{
+					name: "Zap",
+					type: "pitch",
+					presetId: "nes-pulse-12",
+					barSequence: [1],
+					patterns: {
+						"1": [{ step: 0, note: "E5", duration: 3, pitchBend: -18 }],
+					},
+				},
+			],
+		});
+		expect(shortTrack.totalBars).toBe(1);
+		expect(shortTrack.loopEndBar).toBe(0);
+	});
+});
+
+describe("SFX Creator Mode", () => {
+	beforeEach(() => {
+		useChiptuneStore.getState().resetEverything();
+	});
+
+	it("switches between music and sfx modes while preserving each project", () => {
+		const store = useChiptuneStore.getState();
+		store.updateSongMetadata({ title: "Hero Music Track", bpm: 140 });
+		expect(useChiptuneStore.getState().studioMode).toBe("music");
+
+		store.setStudioMode("sfx");
+		let state = useChiptuneStore.getState();
+		expect(state.studioMode).toBe("sfx");
+		expect(state.loopMode).toBe("once");
+		expect(state.song.totalBars).toBeLessThanOrEqual(2);
+		expect(state.musicProjectBackup?.title).toBe("Hero Music Track");
+
+		state.updateSongMetadata({ title: "Custom Laser Zap" });
+		state.setStudioMode("music");
+		state = useChiptuneStore.getState();
+		expect(state.studioMode).toBe("music");
+		expect(state.loopMode).toBe("song");
+		expect(state.song.title).toBe("Hero Music Track");
+		expect(state.sfxProjectBackup?.title).toBe("Custom Laser Zap");
+
+		state.setStudioMode("sfx");
+		expect(useChiptuneStore.getState().song.title).toBe("Custom Laser Zap");
+	});
+
+	it("loads all built-in retro SFX and short music examples", () => {
+		const expectedIds = [
+			"sfx-ray-gun",
+			"sfx-hurt",
+			"sfx-attack",
+			"sfx-winning",
+			"sfx-defeated",
+			"sfx-coin-pickup",
+			"sfx-power-up",
+			"sfx-jump-boost",
+		];
+		expect(SFX_PRESETS.map((preset) => preset.id)).toEqual(expectedIds);
+
+		useChiptuneStore.getState().loadSfxPreset("sfx-ray-gun");
+		let state = useChiptuneStore.getState();
+		expect(state.studioMode).toBe("sfx");
+		expect(state.song.title).toBe("Ray Gun Shoot");
+		expect(state.song.totalBars).toBe(1);
+		expect(state.loopMode).toBe("once");
+		expect(
+			(getActivePatternForChannel(state.song.channels[0], 0)?.notes.length ?? 0) >
+				0
+		).toBe(true);
+
+		useChiptuneStore.getState().loadSfxPreset("sfx-defeated");
+		state = useChiptuneStore.getState();
+		expect(state.song.title).toBe("Defeated");
+		expect(state.song.totalBars).toBe(2);
+		expect(state.scaleLockOnly).toBe(true);
+	});
+
+	it("supports shorter tracks (1 to 4 bars) and procedural SFX generation", () => {
+		const store = useChiptuneStore.getState();
+		store.setStudioMode("sfx");
+		store.setTotalBars(1);
+		expect(useChiptuneStore.getState().song.totalBars).toBe(1);
+		expect(useChiptuneStore.getState().song.loopEndBar).toBe(0);
+
+		store.setTotalBars(2);
+		expect(useChiptuneStore.getState().song.totalBars).toBe(2);
+		expect(useChiptuneStore.getState().song.loopEndBar).toBe(1);
+
+		store.generateSfxPattern("laser");
+		let pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect((pattern?.notes.length ?? 0) > 0).toBe(true);
+		expect(pattern?.notes.some((note) => note.pitchBend < 0)).toBe(true);
+
+		store.generateSfxPattern("hurt");
+		pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect((pattern?.notes.length ?? 0) > 0).toBe(true);
+		expect(
+			useChiptuneStore.getState().song.channels[0]?.instrument.presetId
+		).toBe("vrc6-saw-lead");
 	});
 });

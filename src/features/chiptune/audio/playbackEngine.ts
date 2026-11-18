@@ -9,6 +9,7 @@ import {
 } from "./voiceSynthesizer";
 
 type StepListener = (barIndex: number, stepIndex: number) => void;
+type PlaybackEndedListener = () => void;
 
 const hasWebAudioSupport = (): boolean => {
 	return (
@@ -28,6 +29,8 @@ class ChiptunePlaybackEngine {
 	private focusedBarIndex = 0;
 	private masterGainNode: GainNode | null = null;
 	private onStepCallback: StepListener | null = null;
+	private onPlaybackEndedCallback: PlaybackEndedListener | null = null;
+	private finishTimeoutId: number | null = null;
 
 	public updateSong(
 		song: SongProject,
@@ -56,6 +59,12 @@ class ChiptunePlaybackEngine {
 
 	public setStepListener(listener: StepListener | null): void {
 		this.onStepCallback = listener;
+	}
+
+	public setPlaybackEndedListener(
+		listener: PlaybackEndedListener | null
+	): void {
+		this.onPlaybackEndedCallback = listener;
 	}
 
 	public getWaveformData(targetArray: Float32Array): void {
@@ -92,7 +101,7 @@ class ChiptunePlaybackEngine {
 			Math.min(song.totalBars - 1, startBarIndex)
 		);
 		this.currentBarIndex =
-			loopMode === "song" &&
+			(loopMode === "song" || loopMode === "once") &&
 			(clampedStartBar < loopStart || clampedStartBar > loopEnd)
 				? loopStart
 				: clampedStartBar;
@@ -125,6 +134,10 @@ class ChiptunePlaybackEngine {
 			window.clearInterval(this.timerId);
 			this.timerId = null;
 		}
+		if (this.finishTimeoutId !== null) {
+			window.clearTimeout(this.finishTimeoutId);
+			this.finishTimeoutId = null;
+		}
 		if (hasWebAudioSupport()) {
 			try {
 				Tone.Draw.cancel();
@@ -150,7 +163,11 @@ class ChiptunePlaybackEngine {
 		const audioContext = getOrCreateLiveAudioContext();
 		const lookaheadSeconds = 0.11;
 
-		while (this.nextNoteTime < audioContext.currentTime + lookaheadSeconds) {
+		while (
+			this.isRunning &&
+			this.timerId !== null &&
+			this.nextNoteTime < audioContext.currentTime + lookaheadSeconds
+		) {
 			this.scheduleCurrentStep(audioContext, this.masterGainNode);
 			this.advanceStep();
 		}
@@ -256,6 +273,24 @@ class ChiptunePlaybackEngine {
 					loopStart,
 					Math.min(song.totalBars - 1, song.loopEndBar ?? song.totalBars - 1)
 				);
+				if (this.activeLoopMode === "once" && this.currentBarIndex >= loopEnd) {
+					if (this.timerId !== null) {
+						window.clearInterval(this.timerId);
+						this.timerId = null;
+					}
+					const audioContext = getOrCreateLiveAudioContext();
+					const delayMs = Math.max(
+						80,
+						Math.ceil(
+							(this.nextNoteTime - audioContext.currentTime + 0.18) * 1000
+						)
+					);
+					this.finishTimeoutId = window.setTimeout(() => {
+						this.stop();
+						this.onPlaybackEndedCallback?.();
+					}, delayMs);
+					return;
+				}
 				this.currentBarIndex =
 					this.currentBarIndex >= loopEnd || this.currentBarIndex < loopStart
 						? loopStart

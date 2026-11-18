@@ -10,6 +10,7 @@ import { ConfirmResetDialog } from "./ConfirmResetDialog";
 import { InstrumentSynthPanel } from "./InstrumentSynthPanel";
 import { PianoRollEditor } from "./PianoRollEditor";
 import { ProjectManagerDialog } from "./ProjectManagerDialog";
+import { SfxCreatorBanner } from "./SfxCreatorBanner";
 import { SongMatrixPanel } from "./SongMatrixPanel";
 import { TransportHeader } from "./TransportHeader";
 
@@ -25,6 +26,7 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 	const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
 	const song = useChiptuneStore((state) => state.song);
+	const studioMode = useChiptuneStore((state) => state.studioMode);
 	const isPlaying = useChiptuneStore((state) => state.isPlaying);
 	const loopMode = useChiptuneStore((state) => state.loopMode);
 	const selectedBarIndex = useChiptuneStore((state) => state.selectedBarIndex);
@@ -45,11 +47,15 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 		chiptunePlaybackEngine.setStepListener((barIndex, stepIndex) => {
 			setPlaybackPosition(barIndex, stepIndex);
 		});
+		chiptunePlaybackEngine.setPlaybackEndedListener(() => {
+			setIsPlaying(false);
+		});
 		return (): void => {
 			chiptunePlaybackEngine.setStepListener(null);
+			chiptunePlaybackEngine.setPlaybackEndedListener(null);
 			chiptunePlaybackEngine.stop();
 		};
-	}, [setPlaybackPosition]);
+	}, [setIsPlaying, setPlaybackPosition]);
 
 	// Start or stop engine when isPlaying changes
 	useEffect(() => {
@@ -108,6 +114,8 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 						setIsResetModalOpen(true);
 					}}
 				/>
+
+				{studioMode === "sfx" && <SfxCreatorBanner />}
 
 				{/* Compact Mobile Workspace Switcher (< md) */}
 				<nav

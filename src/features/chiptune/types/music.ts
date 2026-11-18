@@ -58,7 +58,19 @@ export type NoteBendStyle = "late" | "early" | "continuous";
 
 export type NoteFadeMode = "none" | "fadeIn" | "fadeOut";
 
-export type LoopMode = "song" | "bar";
+export type LoopMode = "song" | "bar" | "once";
+
+export type StudioMode = "music" | "sfx";
+
+export type SfxCategory = "combat" | "feedback" | "jingle";
+
+export type SfxGeneratorArchetype =
+	| "laser"
+	| "hurt"
+	| "attack"
+	| "jump"
+	| "coin"
+	| "random";
 
 export interface NoteEvent {
 	id: string;
@@ -76,6 +88,12 @@ export interface NoteEvent {
 	bendStyle?: NoteBendStyle;
 	/** Per-note fade override */
 	fadeMode?: NoteFadeMode;
+}
+
+export interface NoteBatchMoveUpdate {
+	id: string;
+	step: number;
+	pitch: number;
 }
 
 export interface Pattern {
@@ -151,4 +169,13 @@ export interface InstrumentPresetDefinition {
 	category: ChannelType;
 	description: string;
 	configuration: InstrumentConfiguration;
+}
+
+export interface SfxPresetDefinition {
+	id: string;
+	title: string;
+	category: SfxCategory;
+	badge: string;
+	description: string;
+	project: SongProject;
 }

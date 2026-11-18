@@ -5,6 +5,7 @@ import type { FunctionComponent } from "../../../common/types";
 import type {
 	Channel,
 	EditorTool,
+	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
 	PianoRollRow,
@@ -38,6 +39,10 @@ interface KonvaPianoRollStageProps {
 		toStep: number,
 		toPitch: number
 	) => void;
+	onMoveNotesBatch: (
+		updates: Array<NoteBatchMoveUpdate>,
+		deduplicateUnselected?: boolean
+	) => void;
 	onCyclePitchBend: (step: number, pitch: number) => void;
 	onSetNotePitchBend: (
 		step: number,
@@ -65,6 +70,42 @@ interface BendDragSession {
 	canBend: boolean;
 	didBendDrag: boolean;
 	lastPreviewPitch: number;
+}
+
+interface SelectionBoxSession {
+	startX: number;
+	startY: number;
+	additive: boolean;
+	initialIds: Array<string>;
+}
+
+interface SelectionRectBounds {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+interface GroupNoteSnapshot {
+	id: string;
+	initialStep: number;
+	initialPitch: number;
+	duration: number;
+	initialRowIndex: number;
+}
+
+interface GroupNoteDragSession {
+	anchorId: string;
+	startPointerX: number;
+	startPointerY: number;
+	didDrag: boolean;
+	minStepDelta: number;
+	maxStepDelta: number;
+	minRowDelta: number;
+	maxRowDelta: number;
+	lastAppliedStepDelta: number;
+	lastAppliedRowDelta: number;
+	snapshots: Array<GroupNoteSnapshot>;
 }
 
 const clampValue = (
@@ -191,6 +232,7 @@ export const KonvaPianoRollStage = ({
 	onRemoveNote,
 	onResizeNote,
 	onMoveNote,
+	onMoveNotesBatch,
 	onCyclePitchBend,
 	onSetNotePitchBend,
 	onCycleNoteFade,
@@ -201,8 +243,17 @@ export const KonvaPianoRollStage = ({
 
 	const drawingNoteRef = useRef<DrawingNoteSession | null>(null);
 	const bendDragRef = useRef<BendDragSession | null>(null);
+	const selectionBoxRef = useRef<SelectionBoxSession | null>(null);
+	const groupDragRef = useRef<GroupNoteDragSession | null>(null);
 	const [cursorMode, setCursorMode] = useState<string>("");
-	const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+	const [selectedNoteIds, setSelectedNoteIds] = useState<Array<string>>([]);
+	const [selectionBounds, setSelectionBounds] =
+		useState<SelectionRectBounds | null>(null);
+
+	const selectedNoteIdSet = useMemo(
+		() => new Set(selectedNoteIds),
+		[selectedNoteIds]
+	);
 
 	const pitchToRowIndex = useMemo(() => {
 		const map = new Map<number, number>();
@@ -232,7 +283,47 @@ export const KonvaPianoRollStage = ({
 		}));
 	}, [stepWidth, stepsPerBar, stepsPerBeat]);
 
+	const buildGroupMoveUpdates = useCallback(
+		(
+			session: GroupNoteDragSession,
+			stepDelta: number,
+			rowDelta: number
+		): Array<NoteBatchMoveUpdate> => {
+			return session.snapshots.map((snapshot) => {
+				const destinationRow = rows[snapshot.initialRowIndex + rowDelta];
+				return {
+					id: snapshot.id,
+					step: snapshot.initialStep + stepDelta,
+					pitch: destinationRow ? destinationRow.pitch : snapshot.initialPitch,
+				};
+			});
+		},
+		[rows]
+	);
+
 	const finishPointerInteractions = useCallback((): void => {
+		if (selectionBoxRef.current) {
+			selectionBoxRef.current = null;
+			setSelectionBounds(null);
+			setCursorMode("");
+		}
+		const groupDrag = groupDragRef.current;
+		if (groupDrag) {
+			if (
+				groupDrag.didDrag &&
+				(groupDrag.lastAppliedStepDelta !== 0 ||
+					groupDrag.lastAppliedRowDelta !== 0)
+			) {
+				const finalUpdates = buildGroupMoveUpdates(
+					groupDrag,
+					groupDrag.lastAppliedStepDelta,
+					groupDrag.lastAppliedRowDelta
+				);
+				onMoveNotesBatch(finalUpdates, true);
+			}
+			groupDragRef.current = null;
+			setCursorMode("");
+		}
 		const bendDrag = bendDragRef.current;
 		if (bendDrag) {
 			if (!bendDrag.didBendDrag) {
@@ -248,11 +339,23 @@ export const KonvaPianoRollStage = ({
 			setCursorMode("");
 		}
 		drawingNoteRef.current = null;
-	}, [activeTool, onCycleNoteFade, onCyclePitchBend, onRemoveNote]);
+	}, [
+		activeTool,
+		buildGroupMoveUpdates,
+		onCycleNoteFade,
+		onCyclePitchBend,
+		onMoveNotesBatch,
+		onRemoveNote,
+	]);
 
 	useEffect(() => {
 		const handleWindowPointerEnd = (): void => {
-			if (bendDragRef.current || drawingNoteRef.current) {
+			if (
+				bendDragRef.current ||
+				drawingNoteRef.current ||
+				selectionBoxRef.current ||
+				groupDragRef.current
+			) {
 				finishPointerInteractions();
 			}
 		};
@@ -267,16 +370,29 @@ export const KonvaPianoRollStage = ({
 	const handleGridPointerDown = (
 		event: Konva.KonvaEventObject<PointerEvent>
 	): void => {
-		if (activeTool === "select") {
-			setSelectedNoteId(null);
-			return;
-		}
-		if (activeTool !== "draw") {
-			return;
-		}
 		const stage = event.target.getStage();
 		const pointerPosition = stage?.getPointerPosition();
 		if (!pointerPosition) {
+			return;
+		}
+		if (activeTool === "select") {
+			const startX = clampValue(pointerPosition.x, 0, stageWidth);
+			const startY = clampValue(pointerPosition.y, 0, stageHeight);
+			const additive = Boolean(event.evt.shiftKey);
+			selectionBoxRef.current = {
+				startX,
+				startY,
+				additive,
+				initialIds: additive ? selectedNoteIds : [],
+			};
+			if (!additive) {
+				setSelectedNoteIds([]);
+			}
+			setCursorMode("crosshair");
+			setSelectionBounds({ x: startX, y: startY, width: 0, height: 0 });
+			return;
+		}
+		if (activeTool !== "draw") {
 			return;
 		}
 		const step = clampValue(
@@ -318,6 +434,112 @@ export const KonvaPianoRollStage = ({
 		const stage = event.target.getStage();
 		const pointerPosition = stage?.getPointerPosition();
 		if (!pointerPosition) {
+			return;
+		}
+
+		const selectionBox = selectionBoxRef.current;
+		if (selectionBox) {
+			const clampedX = clampValue(pointerPosition.x, 0, stageWidth);
+			const clampedY = clampValue(pointerPosition.y, 0, stageHeight);
+			const left = Math.min(selectionBox.startX, clampedX);
+			const right = Math.max(selectionBox.startX, clampedX);
+			const top = Math.min(selectionBox.startY, clampedY);
+			const bottom = Math.max(selectionBox.startY, clampedY);
+			setSelectionBounds({
+				x: left,
+				y: top,
+				width: right - left,
+				height: bottom - top,
+			});
+
+			if (right - left >= 2 || bottom - top >= 2) {
+				const horizontalInset = stepWidth < 12 ? 1 : 2;
+				const hitIds: Array<string> = [];
+				for (const note of activeNotes) {
+					const rowIndex = pitchToRowIndex.get(note.pitch);
+					if (rowIndex === undefined) {
+						continue;
+					}
+					const noteLeft = note.step * stepWidth + horizontalInset;
+					const noteRight = Math.max(
+						noteLeft + 4,
+						(note.step + note.duration) * stepWidth - horizontalInset
+					);
+					const noteTop = rowIndex * rowHeight;
+					const noteBottom = noteTop + rowHeight;
+					if (
+						noteRight >= left &&
+						noteLeft <= right &&
+						noteBottom >= top &&
+						noteTop <= bottom
+					) {
+						hitIds.push(note.id);
+					}
+				}
+				if (selectionBox.additive) {
+					const merged = new Set(selectionBox.initialIds);
+					for (const hitId of hitIds) {
+						merged.add(hitId);
+					}
+					setSelectedNoteIds(Array.from(merged));
+				} else {
+					setSelectedNoteIds(hitIds);
+				}
+			}
+			return;
+		}
+
+		const groupDrag = groupDragRef.current;
+		if (groupDrag) {
+			const dragDistance = Math.hypot(
+				pointerPosition.x - groupDrag.startPointerX,
+				pointerPosition.y - groupDrag.startPointerY
+			);
+			if (!groupDrag.didDrag && dragDistance < 3) {
+				return;
+			}
+			groupDrag.didDrag = true;
+			setCursorMode("grabbing");
+
+			const rawStepDelta = Math.round(
+				(pointerPosition.x - groupDrag.startPointerX) / stepWidth
+			);
+			const rawRowDelta = Math.round(
+				(pointerPosition.y - groupDrag.startPointerY) / rowHeight
+			);
+			const clampedStepDelta = clampValue(
+				rawStepDelta,
+				groupDrag.minStepDelta,
+				groupDrag.maxStepDelta
+			);
+			const clampedRowDelta = clampValue(
+				rawRowDelta,
+				groupDrag.minRowDelta,
+				groupDrag.maxRowDelta
+			);
+
+			if (
+				clampedStepDelta !== groupDrag.lastAppliedStepDelta ||
+				clampedRowDelta !== groupDrag.lastAppliedRowDelta
+			) {
+				const didRowChange = clampedRowDelta !== groupDrag.lastAppliedRowDelta;
+				groupDrag.lastAppliedStepDelta = clampedStepDelta;
+				groupDrag.lastAppliedRowDelta = clampedRowDelta;
+				const updates = buildGroupMoveUpdates(
+					groupDrag,
+					clampedStepDelta,
+					clampedRowDelta
+				);
+				onMoveNotesBatch(updates, false);
+				if (didRowChange) {
+					const anchorUpdate = updates.find(
+						(update) => update.id === groupDrag.anchorId
+					);
+					if (anchorUpdate) {
+						onPreviewPitch(anchorUpdate.pitch);
+					}
+				}
+			}
 			return;
 		}
 
@@ -610,6 +832,9 @@ export const KonvaPianoRollStage = ({
 
 					const isMoveTool = activeTool === "move";
 					const isSelectTool = activeTool === "select";
+					const isNoteSelected = selectedNoteIdSet.has(note.id);
+					const isMultiSelectedMove =
+						isMoveTool && isNoteSelected && selectedNoteIds.length > 1;
 					const showResizeHandle =
 						activeChannel.type === "pitch" &&
 						!isSelectTool &&
@@ -619,7 +844,7 @@ export const KonvaPianoRollStage = ({
 						<Group key={note.id}>
 							<Group
 								dragDistance={5}
-								draggable={isMoveTool}
+								draggable={isMoveTool && !isMultiSelectedMove}
 								x={startX}
 								y={startRowY}
 								dragBoundFunc={(position): { x: number; y: number } => ({
@@ -679,9 +904,14 @@ export const KonvaPianoRollStage = ({
 									onPreviewPitch(note.pitch, note);
 								}}
 								onMouseEnter={(): void => {
+									if (groupDragRef.current || selectionBoxRef.current) {
+										return;
+									}
 									setCursorMode(
 										isSelectTool
-											? "pointer"
+											? isNoteSelected
+												? "grab"
+												: "pointer"
 											: activeTool === "erase"
 												? "not-allowed"
 												: activeTool === "slide"
@@ -694,15 +924,93 @@ export const KonvaPianoRollStage = ({
 									);
 								}}
 								onMouseLeave={(): void => {
-									if (!bendDragRef.current) {
+									if (
+										!bendDragRef.current &&
+										!groupDragRef.current &&
+										!selectionBoxRef.current
+									) {
 										setCursorMode("");
 									}
 								}}
 								onPointerDown={(event): void => {
-									if (isSelectTool) {
+									if (isSelectTool || isMultiSelectedMove) {
 										event.cancelBubble = true;
-										setSelectedNoteId(note.id);
+										const stage = event.target.getStage();
+										const pointerPosition = stage?.getPointerPosition();
+										if (!pointerPosition) {
+											return;
+										}
+										const isShiftPressed = Boolean(event.evt.shiftKey);
+										if (isSelectTool && isShiftPressed) {
+											if (isNoteSelected) {
+												setSelectedNoteIds((previous) =>
+													previous.filter((id) => id !== note.id)
+												);
+												return;
+											}
+										}
+
+										const effectiveIds =
+											isSelectTool && isShiftPressed
+												? [...selectedNoteIds, note.id]
+												: isNoteSelected
+													? selectedNoteIds
+													: [note.id];
+										if (!isNoteSelected || (isSelectTool && isShiftPressed)) {
+											setSelectedNoteIds(effectiveIds);
+										}
 										onPreviewPitch(note.pitch, note);
+
+										const effectiveIdSet = new Set(effectiveIds);
+										const snapshots: Array<GroupNoteSnapshot> = [];
+										let minStepDelta = -stepsPerBar;
+										let maxStepDelta = stepsPerBar;
+										let minRowDelta = -rows.length;
+										let maxRowDelta = rows.length;
+
+										for (const item of activeNotes) {
+											if (!effectiveIdSet.has(item.id)) {
+												continue;
+											}
+											const itemRowIndex = pitchToRowIndex.get(item.pitch);
+											if (itemRowIndex === undefined) {
+												continue;
+											}
+											snapshots.push({
+												id: item.id,
+												initialStep: item.step,
+												initialPitch: item.pitch,
+												duration: item.duration,
+												initialRowIndex: itemRowIndex,
+											});
+											minStepDelta = Math.max(minStepDelta, -item.step);
+											maxStepDelta = Math.min(
+												maxStepDelta,
+												stepsPerBar - 1 - item.step
+											);
+											minRowDelta = Math.max(minRowDelta, -itemRowIndex);
+											maxRowDelta = Math.min(
+												maxRowDelta,
+												rows.length - 1 - itemRowIndex
+											);
+										}
+
+										if (snapshots.length > 0) {
+											groupDragRef.current = {
+												anchorId: note.id,
+												startPointerX: pointerPosition.x,
+												startPointerY: pointerPosition.y,
+												didDrag: false,
+												minStepDelta,
+												maxStepDelta,
+												minRowDelta,
+												maxRowDelta,
+												lastAppliedStepDelta: 0,
+												lastAppliedRowDelta: 0,
+												snapshots,
+											};
+											setCursorMode("grabbing");
+										}
 										return;
 									}
 									if (isMoveTool) {
@@ -744,16 +1052,18 @@ export const KonvaPianoRollStage = ({
 									closed
 									fill={noteColor}
 									listening={false}
-									opacity={0.3}
+									opacity={isNoteSelected ? 0.52 : 0.3}
 									points={haloPoints}
+									stroke={isNoteSelected ? "#c4b5fd" : undefined}
+									strokeWidth={isNoteSelected ? 1 : 0}
 								/>
 								<Line
 									closed
 									fill={noteColor}
 									listening={false}
 									points={corePoints}
-									stroke={selectedNoteId === note.id ? "#ffffff" : undefined}
-									strokeWidth={selectedNoteId === note.id ? 1.5 : 0}
+									stroke={isNoteSelected ? "#ffffff" : undefined}
+									strokeWidth={isNoteSelected ? 1.8 : 0}
 								/>
 								{note.pitchBend !== 0 && (
 									<Text
@@ -833,6 +1143,20 @@ export const KonvaPianoRollStage = ({
 						</Group>
 					);
 				})}
+
+				{selectionBounds && (
+					<Rect
+						dash={[5, 3]}
+						fill="rgba(167, 139, 250, 0.2)"
+						height={Math.max(1, selectionBounds.height)}
+						listening={false}
+						stroke="#c4b5fd"
+						strokeWidth={1.5}
+						width={Math.max(1, selectionBounds.width)}
+						x={selectionBounds.x}
+						y={selectionBounds.y}
+					/>
+				)}
 			</Layer>
 		</Stage>
 	);

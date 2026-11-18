@@ -74,7 +74,7 @@ export const renderSongToWavBlob = async (
 	const renderedBarCount = loopEnd - loopStart + 1;
 	const singleLoopDuration =
 		renderedBarCount * stepsPerBar * stepDurationSeconds;
-	const tailSeconds = 1.25;
+	const tailSeconds = renderedBarCount <= 2 ? 0.35 : 1.25;
 	const totalDurationSeconds = singleLoopDuration * loopCount + tailSeconds;
 	const totalFrames = Math.ceil(totalDurationSeconds * sampleRate);
 

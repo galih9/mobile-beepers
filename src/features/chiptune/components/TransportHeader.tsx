@@ -1,7 +1,9 @@
 import {
 	ArrowPathIcon,
 	ArrowPathRoundedSquareIcon,
+	BoltIcon,
 	FolderOpenIcon,
+	MusicalNoteIcon,
 	PauseIcon,
 	PlayIcon,
 	PlusIcon,
@@ -12,7 +14,9 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import type { FunctionComponent } from "../../../common/types";
 import { DEMO_SONGS } from "../constants/demoSongs";
 import { SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
+import { SFX_PRESETS } from "../constants/sfxPresets";
 import { useChiptuneStore } from "../store/useChiptuneStore";
+import type { LoopMode } from "../types/music";
 
 interface TransportHeaderProps {
 	onOpenProjectModal: () => void;
@@ -30,11 +34,13 @@ export const TransportHeader = ({
 	const volumeSliderRef = useRef<HTMLInputElement | null>(null);
 
 	const song = useChiptuneStore((state) => state.song);
+	const studioMode = useChiptuneStore((state) => state.studioMode);
 	const isPlaying = useChiptuneStore((state) => state.isPlaying);
 	const loopMode = useChiptuneStore((state) => state.loopMode);
 	const followPlayhead = useChiptuneStore((state) => state.followPlayhead);
 	const playbackBar = useChiptuneStore((state) => state.playbackBar);
 	const playbackStep = useChiptuneStore((state) => state.playbackStep);
+	const setStudioMode = useChiptuneStore((state) => state.setStudioMode);
 	const setIsPlaying = useChiptuneStore((state) => state.setIsPlaying);
 	const setLoopMode = useChiptuneStore((state) => state.setLoopMode);
 	const setFollowPlayhead = useChiptuneStore(
@@ -44,6 +50,7 @@ export const TransportHeader = ({
 		(state) => state.updateSongMetadata
 	);
 	const loadDemoSong = useChiptuneStore((state) => state.loadDemoSong);
+	const loadSfxPreset = useChiptuneStore((state) => state.loadSfxPreset);
 	const setTotalBars = useChiptuneStore((state) => state.setTotalBars);
 
 	useEffect(() => {
@@ -59,7 +66,26 @@ export const TransportHeader = ({
 	const sliderStyle = { "--slider-accent": "#00c7ff" } as CSSProperties;
 	const matchedDemoId =
 		DEMO_SONGS.find((demo) => demo.title === song.title)?.id ?? "";
+	const matchedSfxId =
+		SFX_PRESETS.find((preset) => preset.title === song.title)?.id ?? "";
 	const scaleLabel = SCALE_DEFINITIONS[song.scale]?.label ?? song.scale;
+
+	const nextLoopMode: LoopMode =
+		loopMode === "song" ? "bar" : loopMode === "bar" ? "once" : "song";
+	const loopButtonTitle =
+		loopMode === "once"
+			? "Play Once (1-Shot)"
+			: loopMode === "bar"
+				? "Loop Current Bar"
+				: "Loop Song";
+	const loopAriaLabel =
+		loopMode === "once"
+			? "Play once without looping"
+			: loopMode === "bar"
+				? "Looping active bar"
+				: "Looping full song";
+	const loopLabel =
+		loopMode === "once" ? "1-Shot" : loopMode === "bar" ? "Bar" : "Song";
 
 	return (
 		<header className="safe-top-bar studio-chrome-text flex h-11 shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-slate-950 pb-1.5 md:h-12 md:px-3">
@@ -85,22 +111,65 @@ export const TransportHeader = ({
 					<span>{isPlaying ? "Stop" : "Play"}</span>
 				</button>
 
+				<div
+					aria-label="Studio mode"
+					className="flex items-center rounded-md border border-slate-800 bg-slate-900 p-0.5"
+					role="group"
+				>
+					<button
+						aria-pressed={studioMode === "music"}
+						title="Default Music Composer Mode"
+						type="button"
+						className={`inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] font-bold transition ${
+							studioMode === "music"
+								? "bg-cyan-500/25 text-cyan-200"
+								: "text-slate-400 hover:text-white"
+						}`}
+						onClick={(): void => {
+							setStudioMode("music");
+						}}
+					>
+						<MusicalNoteIcon aria-hidden="true" className="size-3" />
+						<span>Music</span>
+					</button>
+					<button
+						aria-pressed={studioMode === "sfx"}
+						title="Retro SFX & Short Music Creator Mode"
+						type="button"
+						className={`inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] font-bold transition ${
+							studioMode === "sfx"
+								? "bg-amber-500/25 text-amber-200"
+								: "text-slate-400 hover:text-white"
+						}`}
+						onClick={(): void => {
+							setStudioMode("sfx");
+						}}
+					>
+						<BoltIcon aria-hidden="true" className="size-3" />
+						<span>
+							SFX<span className="hidden xl:inline"> Creator</span>
+						</span>
+					</button>
+				</div>
+
 				<button
-					title={loopMode === "song" ? "Loop Song" : "Loop Current Bar"}
+					aria-label={loopAriaLabel}
+					title={loopButtonTitle}
 					type="button"
-					aria-label={
-						loopMode === "song" ? "Looping full song" : "Looping active bar"
-					}
 					className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition ${
-						loopMode === "bar"
-							? "border-amber-400/60 bg-amber-500/15 text-amber-300"
-							: "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600"
+						loopMode === "once"
+							? "border-emerald-400/60 bg-emerald-500/15 text-emerald-300"
+							: loopMode === "bar"
+								? "border-amber-400/60 bg-amber-500/15 text-amber-300"
+								: "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600"
 					}`}
 					onClick={(): void => {
-						setLoopMode(loopMode === "song" ? "bar" : "song");
+						setLoopMode(nextLoopMode);
 					}}
 				>
-					{loopMode === "bar" ? (
+					{loopMode === "once" ? (
+						<BoltIcon aria-hidden="true" className="size-3.5" />
+					) : loopMode === "bar" ? (
 						<ArrowPathRoundedSquareIcon
 							aria-hidden="true"
 							className="size-3.5"
@@ -108,9 +177,7 @@ export const TransportHeader = ({
 					) : (
 						<ArrowPathIcon aria-hidden="true" className="size-3.5" />
 					)}
-					<span className="hidden sm:inline">
-						{loopMode === "bar" ? "Bar" : "Song"}
-					</span>
+					<span className="hidden sm:inline">{loopLabel}</span>
 				</button>
 
 				<label
@@ -190,40 +257,78 @@ export const TransportHeader = ({
 				/>
 			</div>
 
-			{/* Right: Desktop Quick Demo Switcher + Bar Extender + File/WAV button */}
+			{/* Right: Desktop Quick Demo / SFX Switcher + Bar Extender + File/WAV button */}
 			<div className="flex shrink-0 items-center gap-1.5">
 				<div className="hidden items-center gap-1.5 lg:flex">
-					<select
-						aria-label="Quick load demo song"
-						className="h-7 max-w-44 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-slate-200 hover:border-slate-600"
-						value={matchedDemoId}
-						onChange={(event): void => {
-							if (event.target.value) {
-								loadDemoSong(event.target.value);
-							}
-						}}
-					>
-						<option value="">Load Demo Track...</option>
-						{DEMO_SONGS.map((demo) => (
-							<option key={demo.id} value={demo.id}>
-								{demo.title}
-							</option>
-						))}
-					</select>
+					{studioMode === "music" ? (
+						<>
+							<select
+								aria-label="Quick load demo song"
+								className="h-7 max-w-44 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-slate-200 hover:border-slate-600"
+								value={matchedDemoId}
+								onChange={(event): void => {
+									if (event.target.value) {
+										loadDemoSong(event.target.value);
+									}
+								}}
+							>
+								<option value="">Load Demo Track...</option>
+								{DEMO_SONGS.map((demo) => (
+									<option key={demo.id} value={demo.id}>
+										{demo.title}
+									</option>
+								))}
+							</select>
 
-					<button
-						aria-label="Add 4 bars to song length"
-						className="inline-flex h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-violet-300 hover:border-violet-400/50 hover:text-white disabled:opacity-40"
-						disabled={song.totalBars >= 32}
-						title="Extend song length by 4 bars"
-						type="button"
-						onClick={(): void => {
-							setTotalBars(Math.min(32, song.totalBars + 4));
-						}}
-					>
-						<PlusIcon aria-hidden="true" className="size-3" />
-						<span>4 Bars</span>
-					</button>
+							<button
+								aria-label="Add 4 bars to song length"
+								className="inline-flex h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-violet-300 hover:border-violet-400/50 hover:text-white disabled:opacity-40"
+								disabled={song.totalBars >= 32}
+								title="Extend song length by 4 bars"
+								type="button"
+								onClick={(): void => {
+									setTotalBars(Math.min(32, song.totalBars + 4));
+								}}
+							>
+								<PlusIcon aria-hidden="true" className="size-3" />
+								<span>4 Bars</span>
+							</button>
+						</>
+					) : (
+						<>
+							<select
+								aria-label="Quick load retro SFX"
+								className="h-7 max-w-44 rounded-md border border-amber-500/40 bg-slate-900 px-2 text-[11px] font-semibold text-amber-100 hover:border-amber-400"
+								value={matchedSfxId}
+								onChange={(event): void => {
+									if (event.target.value) {
+										loadSfxPreset(event.target.value);
+									}
+								}}
+							>
+								<option value="">Load Retro SFX...</option>
+								{SFX_PRESETS.map((preset) => (
+									<option key={preset.id} value={preset.id}>
+										{preset.title}
+									</option>
+								))}
+							</select>
+
+							<button
+								aria-label="Add 1 bar to SFX length"
+								className="inline-flex h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-amber-300 hover:border-amber-400/50 hover:text-white disabled:opacity-40"
+								disabled={song.totalBars >= 8}
+								title="Extend short SFX track by 1 bar"
+								type="button"
+								onClick={(): void => {
+									setTotalBars(Math.min(8, song.totalBars + 1));
+								}}
+							>
+								<PlusIcon aria-hidden="true" className="size-3" />
+								<span>1 Bar</span>
+							</button>
+						</>
+					)}
 				</div>
 
 				<span className="hidden max-w-36 truncate font-mono text-[11px] font-semibold text-slate-300 md:inline lg:hidden">

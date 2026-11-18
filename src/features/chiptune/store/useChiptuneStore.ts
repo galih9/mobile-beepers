@@ -2,7 +2,17 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createBlankSongProject, DEMO_SONGS } from "../constants/demoSongs";
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
-import type { MusicalKey, ScaleType, SongProject } from "../types/music";
+import {
+	createBlankSfxProject,
+	generateProceduralSfxNotes,
+	getSfxPresetById,
+} from "../constants/sfxPresets";
+import type {
+	MusicalKey,
+	ScaleType,
+	SfxGeneratorArchetype,
+	SongProject,
+} from "../types/music";
 import {
 	clonePatternToBarInSong,
 	copyBarPatternSlotInSong,
@@ -12,6 +22,7 @@ import {
 	generateRiffInChannelPattern,
 	getStepsPerBar,
 	moveNoteInSong,
+	moveNotesBatchInSong,
 	reorderChannelsInSong,
 	setBarPatternIndexInSong,
 	setNotePitchBendInSong,
@@ -28,10 +39,24 @@ const initialSong = cloneSongProject(
 	DEMO_SONGS[0] ?? createBlankSongProject("Neon Demo")
 );
 
+const SFX_ARCHETYPE_PRESET_MAP: Record<
+	Exclude<SfxGeneratorArchetype, "random">,
+	string
+> = {
+	laser: "nes-pulse-12",
+	hurt: "vrc6-saw-lead",
+	attack: "genesis-fm-bell",
+	jump: "gb-square-50",
+	coin: "nes-pulse-25",
+};
+
 export const useChiptuneStore = create<ChiptuneStoreState>()(
 	persist(
 		(set) => ({
+			studioMode: "music",
 			song: initialSong,
+			musicProjectBackup: null,
+			sfxProjectBackup: null,
 			savedSongs: [],
 			selectedChannelIndex: 0,
 			selectedBarIndex: 0,
@@ -138,11 +163,14 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 
 			setTotalBars: (totalBars): void => {
 				set((state) => {
-					const clampedBars = Math.max(4, Math.min(32, totalBars));
-					const nextLoopEnd = Math.min(
-						clampedBars - 1,
-						state.song.loopEndBar ?? clampedBars - 1
-					);
+					const clampedBars = Math.max(1, Math.min(32, totalBars));
+					const nextLoopEnd =
+						state.studioMode === "sfx"
+							? clampedBars - 1
+							: Math.min(
+									clampedBars - 1,
+									state.song.loopEndBar ?? clampedBars - 1
+								);
 					const nextLoopStart = Math.min(
 						nextLoopEnd,
 						state.song.loopStartBar ?? 0
@@ -406,6 +434,18 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				}));
 			},
 
+			moveNotesBatch: (updates, deduplicateUnselected = true): void => {
+				set((state) => ({
+					song: moveNotesBatchInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						updates,
+						deduplicateUnselected
+					),
+				}));
+			},
+
 			cycleNotePitchBend: (step, pitch): void => {
 				set((state) => ({
 					song: cycleNotePitchBendInSong(
@@ -514,14 +554,145 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			setStudioMode: (mode): void => {
+				set((state) => {
+					if (mode === state.studioMode) {
+						return state;
+					}
+					if (mode === "sfx") {
+						const defaultSfx = getSfxPresetById("sfx-ray-gun").project;
+						const nextSong = state.sfxProjectBackup
+							? cloneSongProject(state.sfxProjectBackup)
+							: cloneSongProject(defaultSfx);
+						return {
+							studioMode: "sfx",
+							musicProjectBackup: cloneSongProject(state.song),
+							song: nextSong,
+							loopMode: "once",
+							scaleLockOnly: false,
+							selectedChannelIndex: 0,
+							selectedBarIndex: 0,
+							playbackBar: 0,
+							playbackStep: 0,
+							isPlaying: false,
+						};
+					}
+					const defaultMusic =
+						DEMO_SONGS[0] ?? createBlankSongProject("Neon Demo");
+					const nextSong = state.musicProjectBackup
+						? cloneSongProject(state.musicProjectBackup)
+						: cloneSongProject(defaultMusic);
+					return {
+						studioMode: "music",
+						sfxProjectBackup: cloneSongProject(state.song),
+						song: nextSong,
+						loopMode: "song",
+						scaleLockOnly: true,
+						selectedChannelIndex: 0,
+						selectedBarIndex: 0,
+						playbackBar: 0,
+						playbackStep: 0,
+						isPlaying: false,
+					};
+				});
+			},
+
+			loadSfxPreset: (presetId): void => {
+				set((state) => {
+					const preset = getSfxPresetById(presetId);
+					const targetProject = cloneSongProject(preset.project);
+					return {
+						studioMode: "sfx",
+						musicProjectBackup:
+							state.studioMode === "music"
+								? cloneSongProject(state.song)
+								: state.musicProjectBackup,
+						song: { ...targetProject, id: `sfx-${Date.now()}` },
+						loopMode: "once",
+						scaleLockOnly: preset.category === "jingle",
+						selectedChannelIndex: 0,
+						selectedBarIndex: 0,
+						playbackBar: 0,
+						playbackStep: 0,
+						isPlaying: false,
+					};
+				});
+			},
+
+			createNewSfxProject: (): void => {
+				set((state) => ({
+					studioMode: "sfx",
+					musicProjectBackup:
+						state.studioMode === "music"
+							? cloneSongProject(state.song)
+							: state.musicProjectBackup,
+					song: createBlankSfxProject("New Retro SFX"),
+					loopMode: "once",
+					scaleLockOnly: false,
+					selectedChannelIndex: 0,
+					selectedBarIndex: 0,
+					playbackBar: 0,
+					playbackStep: 0,
+					isPlaying: false,
+				}));
+			},
+
+			generateSfxPattern: (archetype = "random"): void => {
+				set((state) => {
+					const activeChannel = state.song.channels[state.selectedChannelIndex];
+					if (!activeChannel) {
+						return state;
+					}
+					const stepsPerBar = getStepsPerBar(state.song);
+					const generatedNotes = generateProceduralSfxNotes(
+						archetype,
+						activeChannel.type,
+						stepsPerBar
+					);
+
+					let baseSong = state.song;
+					if (archetype !== "random" && activeChannel.type === "pitch") {
+						const presetId = SFX_ARCHETYPE_PRESET_MAP[archetype];
+						const preset = getPresetConfigurationById(presetId);
+						baseSong = {
+							...baseSong,
+							channels: baseSong.channels.map((channel, index) =>
+								index === state.selectedChannelIndex
+									? {
+											...channel,
+											instrument: { ...preset.configuration },
+										}
+									: channel
+							),
+						};
+					}
+
+					return {
+						song: updateChannelPatternNotes(
+							baseSong,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							() => generatedNotes
+						),
+					};
+				});
+			},
+
 			loadDemoSong: (demoId): void => {
-				set(() => {
+				set((state) => {
 					const found = DEMO_SONGS.find((demo) => demo.id === demoId);
 					const target = cloneSongProject(
 						found ?? DEMO_SONGS[0] ?? createBlankSongProject("Demo Song")
 					);
 					return {
+						studioMode: "music",
+						sfxProjectBackup:
+							state.studioMode === "sfx"
+								? cloneSongProject(state.song)
+								: state.sfxProjectBackup,
 						song: { ...target, id: `song-${Date.now()}` },
+						loopMode: "song",
+						scaleLockOnly: true,
 						selectedChannelIndex: 0,
 						selectedBarIndex: 0,
 						playbackBar: 0,
@@ -532,14 +703,17 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 
 			createNewProject: (): void => {
-				set({
-					song: createBlankSongProject("New Chiptune"),
+				set((state) => ({
+					song:
+						state.studioMode === "sfx"
+							? createBlankSfxProject("New Retro SFX")
+							: createBlankSongProject("New Chiptune"),
 					selectedChannelIndex: 0,
 					selectedBarIndex: 0,
 					playbackBar: 0,
 					playbackStep: 0,
 					isPlaying: false,
-				});
+				}));
 			},
 
 			importSongProject: (project): void => {
@@ -595,7 +769,10 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 
 			resetEverything: (): void => {
 				set({
+					studioMode: "music",
 					song: createBlankSongProject("New Chiptune"),
+					musicProjectBackup: null,
+					sfxProjectBackup: null,
 					savedSongs: [],
 					selectedChannelIndex: 0,
 					selectedBarIndex: 0,
@@ -616,13 +793,23 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 		{
 			name: "ultrabeep-chiptune-store-v1",
 			partialize: (state): PersistedChiptuneState => ({
+				studioMode: state.studioMode,
 				song: state.song,
+				musicProjectBackup: state.musicProjectBackup,
+				sfxProjectBackup: state.sfxProjectBackup,
 				savedSongs: state.savedSongs,
 				scaleLockOnly: state.scaleLockOnly,
 				showGhostNotes: state.showGhostNotes,
 				defaultNoteDuration: state.defaultNoteDuration,
 				followPlayhead: state.followPlayhead,
 			}),
+			onRehydrateStorage:
+				(): ((state?: ChiptuneStoreState) => void) =>
+				(state): void => {
+					if (state?.song.id === "demo-neon-dungeon" && DEMO_SONGS[0]) {
+						state.song = cloneSongProject(DEMO_SONGS[0]);
+					}
+				},
 		}
 	)
 );

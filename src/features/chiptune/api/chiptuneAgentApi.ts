@@ -6,6 +6,7 @@ import {
 	INSTRUMENT_PRESETS,
 } from "../constants/instrumentPresets";
 import { CHANNEL_COLOR_PALETTE } from "../constants/patternGenerator";
+import { SFX_PRESETS } from "../constants/sfxPresets";
 import {
 	DRUM_PAD_DEFINITIONS,
 	type DrumPadDefinition,
@@ -39,7 +40,10 @@ import type {
 	NoteFadeMode,
 	Pattern,
 	ScaleType,
+	SfxCategory,
+	SfxGeneratorArchetype,
 	SongProject,
+	StudioMode,
 } from "../types/music";
 
 export interface AgentNoteInput {
@@ -236,6 +240,19 @@ export interface ChiptuneAgentApi {
 	play: () => void;
 	stop: () => void;
 	togglePlay: () => boolean;
+	getStudioMode: () => StudioMode;
+	setStudioMode: (mode: StudioMode) => StudioMode;
+	listSfxPresets: () => Array<{
+		id: string;
+		title: string;
+		category: SfxCategory;
+		badge: string;
+		description: string;
+		totalBars: number;
+		bpm: number;
+	}>;
+	loadSfxPreset: (presetId: string) => SongProject;
+	generateSfx: (archetype?: SfxGeneratorArchetype) => Array<NoteEvent>;
 	setLoopMode: (mode: LoopMode) => void;
 	setFollowPlayhead: (follow: boolean) => void;
 	selectChannel: (channelIndex: number) => void;
@@ -356,6 +373,12 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 				"Add or replace a single note using numeric MIDI pitch or note name string.",
 			play: "Start live playback.",
 			stop: "Stop live playback.",
+			setStudioMode:
+				"Switch between 'music' (default multi-bar composer) and 'sfx' (retro SFX & short track creator).",
+			loadSfxPreset:
+				"Load a built-in retro SFX or short jingle preset ('sfx-ray-gun', 'sfx-hurt', 'sfx-attack', 'sfx-winning', 'sfx-defeated', etc.).",
+			generateSfx:
+				"Generate procedural SFX notes ('laser', 'hurt', 'attack', 'jump', 'coin', 'random') on the selected channel and bar.",
 			exportSongJson: "Serialize current SongProject to JSON.",
 			exportWavBlob:
 				"Render current SongProject offline into a stereo WAV Blob.",
@@ -484,6 +507,47 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		const current = useChiptuneStore.getState().isPlaying;
 		useChiptuneStore.getState().setIsPlaying(!current);
 		return !current;
+	},
+
+	getStudioMode: (): StudioMode => useChiptuneStore.getState().studioMode,
+
+	setStudioMode: (mode): StudioMode => {
+		useChiptuneStore.getState().setStudioMode(mode);
+		return useChiptuneStore.getState().studioMode;
+	},
+
+	listSfxPresets: (): Array<{
+		id: string;
+		title: string;
+		category: SfxCategory;
+		badge: string;
+		description: string;
+		totalBars: number;
+		bpm: number;
+	}> =>
+		SFX_PRESETS.map((preset) => ({
+			id: preset.id,
+			title: preset.title,
+			category: preset.category,
+			badge: preset.badge,
+			description: preset.description,
+			totalBars: preset.project.totalBars,
+			bpm: preset.project.bpm,
+		})),
+
+	loadSfxPreset: (presetId): SongProject => {
+		useChiptuneStore.getState().loadSfxPreset(presetId);
+		return structuredClone(useChiptuneStore.getState().song);
+	},
+
+	generateSfx: (archetype = "random"): Array<NoteEvent> => {
+		useChiptuneStore.getState().generateSfxPattern(archetype);
+		const nextState = useChiptuneStore.getState();
+		const pattern = getActivePatternForChannel(
+			nextState.song.channels[nextState.selectedChannelIndex],
+			nextState.selectedBarIndex
+		);
+		return structuredClone(pattern?.notes ?? []);
 	},
 
 	setLoopMode: (mode): void => {
@@ -875,9 +939,9 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		);
 		const totalBars = clampNumber(
 			Math.round(
-				specification.totalBars ?? Math.max(4, maxSequenceLength || 8)
+				specification.totalBars ?? Math.max(1, maxSequenceLength || 8)
 			),
-			4,
+			1,
 			32
 		);
 		const loopStartBar = clampNumber(

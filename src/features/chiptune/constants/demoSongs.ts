@@ -1,5 +1,9 @@
 import type { SongProject } from "../types/music";
-import { cozyPixelTownSong, starlightBossSong } from "./demoTracksExtra";
+import {
+	cozyPixelTownSong,
+	neonHouse125Song,
+	starlightBossSong,
+} from "./demoTracksExtra";
 import { getPresetConfigurationById } from "./instrumentPresets";
 import {
 	CHANNEL_COLOR_PALETTE,
@@ -201,6 +205,7 @@ const neonDungeonSong: SongProject = {
 };
 
 export const DEMO_SONGS: Array<SongProject> = [
+	neonHouse125Song,
 	neonDungeonSong,
 	starlightBossSong,
 	cozyPixelTownSong,

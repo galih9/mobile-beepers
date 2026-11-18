@@ -10,6 +10,7 @@ import {
 import type {
 	Channel,
 	ChannelType,
+	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
 	NoteFadeMode,
@@ -352,6 +353,76 @@ export const moveNoteInSong = (
 			duration: clampedDuration,
 		},
 	]);
+};
+
+export const moveNotesBatchInSong = (
+	song: SongProject,
+	channelIndex: number,
+	barIndex: number,
+	updates: Array<NoteBatchMoveUpdate>,
+	deduplicateUnselected = true
+): SongProject => {
+	const channel = song.channels[channelIndex];
+	if (!channel || updates.length === 0) {
+		return song;
+	}
+	const activePattern = getActivePatternForChannel(channel, barIndex);
+	if (!activePattern) {
+		return song;
+	}
+
+	const stepsPerBar = getStepsPerBar(song);
+	const updateMap = new Map<string, NoteBatchMoveUpdate>();
+	for (const update of updates) {
+		updateMap.set(update.id, update);
+	}
+
+	return updateChannelPatternNotes(song, channelIndex, barIndex, (notes) => {
+		const movedNotes = notes.map((note) => {
+			const target = updateMap.get(note.id);
+			if (!target) {
+				return note;
+			}
+			const clampedStep = Math.max(
+				0,
+				Math.min(stepsPerBar - 1, Math.round(target.step))
+			);
+			const clampedPitch =
+				channel.type === "drum"
+					? Math.max(0, Math.min(7, Math.round(target.pitch)))
+					: Math.max(
+							MELODIC_MIN_MIDI,
+							Math.min(MELODIC_MAX_MIDI, Math.round(target.pitch))
+						);
+			const clampedDuration = Math.max(
+				1,
+				Math.min(stepsPerBar - clampedStep, note.duration)
+			);
+			return {
+				...note,
+				step: clampedStep,
+				pitch: clampedPitch,
+				duration: clampedDuration,
+			};
+		});
+
+		if (!deduplicateUnselected) {
+			return movedNotes;
+		}
+
+		const occupiedByMoved = new Set<string>();
+		for (const note of movedNotes) {
+			if (updateMap.has(note.id)) {
+				occupiedByMoved.add(`${note.step}:${note.pitch}`);
+			}
+		}
+
+		return movedNotes.filter(
+			(note) =>
+				updateMap.has(note.id) ||
+				!occupiedByMoved.has(`${note.step}:${note.pitch}`)
+		);
+	});
 };
 
 export const reorderChannelsInSong = (
