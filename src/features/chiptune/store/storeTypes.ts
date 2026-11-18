@@ -4,6 +4,7 @@ import type {
 	InstrumentConfiguration,
 	LoopMode,
 	MobileWorkspaceTab,
+	NoteBendStyle,
 	NoteEvent,
 	SongProject,
 } from "../types/music";
@@ -14,6 +15,7 @@ export interface PersistedChiptuneState {
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
 	defaultNoteDuration: number;
+	followPlayhead: boolean;
 }
 
 export interface ChiptuneStoreState {
@@ -24,8 +26,10 @@ export interface ChiptuneStoreState {
 	activeWorkspaceTab: MobileWorkspaceTab;
 	activeTool: EditorTool;
 	defaultNoteDuration: number;
+	pianoRollZoom: number;
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
+	followPlayhead: boolean;
 	isPlaying: boolean;
 	loopMode: LoopMode;
 	playbackBar: number;
@@ -34,8 +38,11 @@ export interface ChiptuneStoreState {
 	setActiveWorkspaceTab: (tab: MobileWorkspaceTab) => void;
 	setActiveTool: (tool: EditorTool) => void;
 	setDefaultNoteDuration: (duration: number) => void;
+	setPianoRollZoom: (zoom: number) => void;
 	toggleScaleLockOnly: () => void;
 	toggleShowGhostNotes: () => void;
+	setFollowPlayhead: (follow: boolean) => void;
+	toggleFollowPlayhead: () => void;
 	setSelectedChannelIndex: (index: number) => void;
 	setSelectedBarIndex: (index: number) => void;
 	setIsPlaying: (playing: boolean) => void;
@@ -54,6 +61,7 @@ export interface ChiptuneStoreState {
 	setLoopRange: (loopStartBar: number, loopEndBar: number) => void;
 	addChannel: (channelType: ChannelType) => void;
 	removeChannel: (channelIndex: number) => void;
+	reorderChannels: (fromIndex: number, toIndex: number) => void;
 	toggleChannelMute: (channelIndex: number) => void;
 	toggleChannelSolo: (channelIndex: number) => void;
 	setBarPatternIndex: (
@@ -62,11 +70,30 @@ export interface ChiptuneStoreState {
 		patternIndex: number
 	) => void;
 	clonePatternToBar: (channelIndex: number, barIndex: number) => void;
+	copyBarPatternSlot: (
+		sourceChannelIndex: number,
+		sourceBarIndex: number,
+		targetChannelIndex: number,
+		targetBarIndex: number
+	) => void;
 
 	addOrReplaceNote: (noteInput: Omit<NoteEvent, "id">) => void;
 	removeNoteAt: (step: number, pitch: number) => void;
 	resizeNoteAt: (step: number, pitch: number, duration: number) => void;
+	moveNoteAt: (
+		fromStep: number,
+		fromPitch: number,
+		toStep: number,
+		toPitch: number
+	) => void;
 	cycleNotePitchBend: (step: number, pitch: number) => void;
+	setNotePitchBendAt: (
+		step: number,
+		pitch: number,
+		pitchBend: number,
+		bendStyle?: NoteBendStyle
+	) => void;
+	cycleNoteFadeAt: (step: number, pitch: number) => void;
 	clearCurrentPattern: () => void;
 	transposeCurrentPattern: (semitones: number) => void;
 	generateRiffForCurrentPattern: () => void;
@@ -83,4 +110,5 @@ export interface ChiptuneStoreState {
 	saveCurrentSongToLibrary: () => void;
 	loadSavedSong: (songId: string) => void;
 	deleteSavedSong: (songId: string) => void;
+	resetEverything: () => void;
 }

@@ -1,3 +1,4 @@
+import * as Tone from "tone";
 import { midiToFrequency } from "../constants/scalesAndNotes";
 import type {
 	ArpMode,
@@ -16,6 +17,98 @@ const ARP_SEMITONE_TABLE: Record<ArpMode, Array<number>> = {
 	fifth: [0, 7],
 	majorChord: [0, 4, 7, 11],
 	minorChord: [0, 3, 7, 10],
+};
+
+const hasWebAudioSupport = (): boolean => {
+	return (
+		typeof window !== "undefined" &&
+		("AudioContext" in window || "webkitAudioContext" in window)
+	);
+};
+
+const isOfflineAudioContext = (audioContext: BaseAudioContext): boolean => {
+	return (
+		(typeof OfflineAudioContext !== "undefined" &&
+			audioContext instanceof OfflineAudioContext) ||
+		"startRendering" in audioContext
+	);
+};
+
+const resolveMidiFrequency = (midiNote: number): number => {
+	try {
+		return Tone.Frequency(midiNote, "midi").toFrequency();
+	} catch {
+		return midiToFrequency(midiNote);
+	}
+};
+
+let liveMasterGainBus: Tone.Gain | null = null;
+let liveMasterLimiter: Tone.Limiter | null = null;
+let liveMasterWaveform: Tone.Waveform | null = null;
+
+const ensureLiveMasterChain = (): Tone.Gain | null => {
+	if (!hasWebAudioSupport()) {
+		return null;
+	}
+	if (!liveMasterGainBus) {
+		liveMasterGainBus = new Tone.Gain(1);
+		liveMasterLimiter = new Tone.Limiter(-1);
+		liveMasterWaveform = new Tone.Waveform(256);
+
+		liveMasterGainBus.connect(liveMasterLimiter);
+		liveMasterLimiter.connect(liveMasterWaveform);
+		liveMasterLimiter.toDestination();
+	}
+	return liveMasterGainBus;
+};
+
+export const ensureToneStarted = async (): Promise<void> => {
+	if (!hasWebAudioSupport()) {
+		return;
+	}
+	try {
+		await Tone.start();
+		const toneContext = Tone.getContext();
+		if (toneContext.state === "suspended") {
+			await toneContext.resume();
+		}
+		ensureLiveMasterChain();
+	} catch {
+		// Ignore autoplay restrictions or missing browser AudioContext in tests
+	}
+};
+
+export const getOrCreateLiveAudioContext = (): AudioContext => {
+	const toneContext = Tone.getContext();
+	if (toneContext.state === "suspended") {
+		void toneContext.resume();
+	}
+	ensureLiveMasterChain();
+	return toneContext.rawContext as AudioContext;
+};
+
+export const getLiveMasterInputNode = (): AudioNode => {
+	const audioContext = getOrCreateLiveAudioContext();
+	const masterBus = ensureLiveMasterChain();
+	if (masterBus) {
+		return masterBus.input;
+	}
+	return audioContext.destination;
+};
+
+export const readLiveWaveformData = (targetArray: Float32Array): void => {
+	if (!liveMasterWaveform) {
+		targetArray.fill(0);
+		return;
+	}
+	const samples = liveMasterWaveform.getValue();
+	const copyLength = Math.min(targetArray.length, samples.length);
+	for (let index = 0; index < copyLength; index += 1) {
+		targetArray[index] = samples[index] ?? 0;
+	}
+	for (let index = copyLength; index < targetArray.length; index += 1) {
+		targetArray[index] = 0;
+	}
 };
 
 const createEchoNetwork = (
@@ -57,7 +150,7 @@ const createEchoNetwork = (
 	feedbackGain.connect(delayNode);
 
 	// Disconnect delay feedback cleanly after tail decays in live AudioContext
-	if (typeof window !== "undefined" && audioContext instanceof AudioContext) {
+	if (typeof window !== "undefined" && !isOfflineAudioContext(audioContext)) {
 		const cleanupDelayMs = Math.ceil((totalLifeSeconds + 1.2) * 1000);
 		window.setTimeout(() => {
 			feedbackGain.disconnect();
@@ -101,13 +194,27 @@ const applyWaveformToOscillator = (
 	}
 };
 
+const resolveEffectiveFade = (
+	note: NoteEvent,
+	instrument: InstrumentConfiguration
+): number => {
+	if (note.fadeMode === "fadeIn") {
+		return -0.85;
+	}
+	if (note.fadeMode === "fadeOut") {
+		return 0.85;
+	}
+	return Math.max(-1, Math.min(1, instrument.fadeInOut ?? 0));
+};
+
 const scheduleDrumHit = (
 	audioContext: BaseAudioContext,
 	destination: AudioNode,
 	pitch: number,
 	startTime: number,
 	velocity: number,
-	instrument: InstrumentConfiguration
+	instrument: InstrumentConfiguration,
+	effectiveFade: number
 ): void => {
 	const assets = getAudioAssetsForContext(audioContext);
 	const panner = audioContext.createStereoPanner();
@@ -115,7 +222,22 @@ const scheduleDrumHit = (
 
 	const masterGain = audioContext.createGain();
 	const peakLevel = Math.max(0.02, instrument.volume * velocity * 0.55);
-	masterGain.gain.setValueAtTime(peakLevel, startTime);
+	if (effectiveFade < -0.02) {
+		const fadeInDuration = Math.min(0.16, 0.14 * Math.abs(effectiveFade));
+		masterGain.gain.setValueAtTime(0.001, startTime);
+		masterGain.gain.linearRampToValueAtTime(
+			peakLevel,
+			startTime + fadeInDuration
+		);
+	} else if (effectiveFade > 0.02) {
+		masterGain.gain.setValueAtTime(peakLevel, startTime);
+		masterGain.gain.exponentialRampToValueAtTime(
+			Math.max(0.001, peakLevel * (1 - effectiveFade * 0.92)),
+			startTime + 0.14
+		);
+	} else {
+		masterGain.gain.setValueAtTime(peakLevel, startTime);
+	}
 	masterGain.connect(panner);
 	panner.connect(destination);
 
@@ -249,6 +371,7 @@ export const scheduleChannelNote = (
 	stepDurationSeconds: number
 ): void => {
 	const instrument = channel.instrument;
+	const effectiveFade = resolveEffectiveFade(note, instrument);
 	if (channel.type === "drum" || instrument.waveform === "retroKit") {
 		scheduleDrumHit(
 			audioContext,
@@ -256,7 +379,8 @@ export const scheduleChannelNote = (
 			note.pitch,
 			startTime,
 			note.velocity,
-			instrument
+			instrument,
+			effectiveFade
 		);
 		return;
 	}
@@ -271,24 +395,61 @@ export const scheduleChannelNote = (
 	const sustainLevel = Math.max(0.02, instrument.sustain);
 	const stopTime = startTime + noteDurationSeconds + release + 0.02;
 
-	const baseFrequency = midiToFrequency(note.pitch);
+	const baseFrequency = resolveMidiFrequency(note.pitch);
 	const peakGain = Math.max(0.01, instrument.volume * note.velocity * 0.34);
 
 	const envelopeGain = audioContext.createGain();
 	envelopeGain.gain.setValueAtTime(0.0001, startTime);
-	envelopeGain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
-	envelopeGain.gain.exponentialRampToValueAtTime(
-		Math.max(0.0001, peakGain * sustainLevel),
-		startTime + attack + decay
-	);
-	envelopeGain.gain.setValueAtTime(
-		Math.max(0.0001, peakGain * sustainLevel),
-		startTime + noteDurationSeconds
-	);
-	envelopeGain.gain.exponentialRampToValueAtTime(
-		0.0001,
-		startTime + noteDurationSeconds + release
-	);
+	if (effectiveFade < -0.02) {
+		const fadeInDuration = Math.max(
+			0.02,
+			noteDurationSeconds * Math.min(1, Math.abs(effectiveFade))
+		);
+		if (fadeInDuration < noteDurationSeconds - 0.005) {
+			envelopeGain.gain.linearRampToValueAtTime(
+				peakGain,
+				startTime + fadeInDuration
+			);
+			envelopeGain.gain.linearRampToValueAtTime(
+				Math.max(0.0001, peakGain * sustainLevel),
+				startTime + noteDurationSeconds
+			);
+		} else {
+			envelopeGain.gain.linearRampToValueAtTime(
+				peakGain,
+				startTime + noteDurationSeconds
+			);
+		}
+		envelopeGain.gain.exponentialRampToValueAtTime(
+			0.0001,
+			startTime + noteDurationSeconds + release
+		);
+	} else if (effectiveFade > 0.02) {
+		envelopeGain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+		const fadeTarget = Math.max(0.0001, peakGain * (1 - effectiveFade * 0.95));
+		envelopeGain.gain.exponentialRampToValueAtTime(
+			fadeTarget,
+			startTime + Math.max(attack + 0.01, noteDurationSeconds)
+		);
+		envelopeGain.gain.exponentialRampToValueAtTime(
+			0.0001,
+			startTime + noteDurationSeconds + release
+		);
+	} else {
+		envelopeGain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+		envelopeGain.gain.exponentialRampToValueAtTime(
+			Math.max(0.0001, peakGain * sustainLevel),
+			startTime + attack + decay
+		);
+		envelopeGain.gain.setValueAtTime(
+			Math.max(0.0001, peakGain * sustainLevel),
+			startTime + noteDurationSeconds
+		);
+		envelopeGain.gain.exponentialRampToValueAtTime(
+			0.0001,
+			startTime + noteDurationSeconds + release
+		);
+	}
 
 	const lowPassFilter = audioContext.createBiquadFilter();
 	lowPassFilter.type = "lowpass";
@@ -337,26 +498,26 @@ export const scheduleChannelNote = (
 	} else if (instrument.waveform === "supersaw") {
 		const detuneOffsets = [-16, 0, 16];
 		detuneOffsets.forEach((offsetCents) => {
-			const osc = audioContext.createOscillator();
+			const oscillator = audioContext.createOscillator();
 			const subGain = audioContext.createGain();
-			osc.type = "sawtooth";
-			osc.frequency.setValueAtTime(baseFrequency, startTime);
-			osc.detune.setValueAtTime(
+			oscillator.type = "sawtooth";
+			oscillator.frequency.setValueAtTime(baseFrequency, startTime);
+			oscillator.detune.setValueAtTime(
 				offsetCents + instrument.detuneCents,
 				startTime
 			);
 			subGain.gain.value = 0.36;
-			osc.connect(subGain);
+			oscillator.connect(subGain);
 			subGain.connect(envelopeGain);
-			oscillators.push(osc);
+			oscillators.push(oscillator);
 		});
 	} else {
-		const osc = audioContext.createOscillator();
-		applyWaveformToOscillator(audioContext, osc, instrument.waveform);
-		osc.frequency.setValueAtTime(baseFrequency, startTime);
-		osc.detune.setValueAtTime(instrument.detuneCents, startTime);
-		osc.connect(envelopeGain);
-		oscillators.push(osc);
+		const oscillator = audioContext.createOscillator();
+		applyWaveformToOscillator(audioContext, oscillator, instrument.waveform);
+		oscillator.frequency.setValueAtTime(baseFrequency, startTime);
+		oscillator.detune.setValueAtTime(instrument.detuneCents, startTime);
+		oscillator.connect(envelopeGain);
+		oscillators.push(oscillator);
 	}
 
 	// Vibrato LFO
@@ -369,72 +530,100 @@ export const scheduleChannelNote = (
 		);
 		vibratoGain.gain.setValueAtTime(instrument.vibratoDepth, startTime);
 		vibratoOscillator.connect(vibratoGain);
-		oscillators.forEach((osc) => {
-			vibratoGain.connect(osc.detune);
+		oscillators.forEach((oscillator) => {
+			vibratoGain.connect(oscillator.detune);
 		});
 		vibratoOscillator.start(startTime);
 		vibratoOscillator.stop(stopTime);
 	}
 
 	// Pitch slide automation & chiptune arpeggio stepping
-	oscillators.forEach((osc) => {
+	oscillators.forEach((oscillator) => {
 		if (note.pitchBend !== 0) {
-			const targetFrequency = midiToFrequency(note.pitch + note.pitchBend);
-			osc.frequency.linearRampToValueAtTime(
-				targetFrequency,
-				startTime + noteDurationSeconds
-			);
+			const targetFrequency = resolveMidiFrequency(note.pitch + note.pitchBend);
+			if (note.bendStyle === "early" && note.duration >= 2) {
+				const bendStart =
+					startTime +
+					Math.min(noteDurationSeconds * 0.25, stepDurationSeconds * 0.35);
+				const bendEnd =
+					startTime +
+					Math.min(noteDurationSeconds * 0.85, stepDurationSeconds * 1.35);
+				oscillator.frequency.setValueAtTime(baseFrequency, bendStart);
+				oscillator.frequency.linearRampToValueAtTime(
+					targetFrequency,
+					Math.max(bendStart + 0.01, bendEnd)
+				);
+			} else if (
+				(note.bendStyle === "late" || !note.bendStyle) &&
+				note.duration > 2
+			) {
+				const bendStart =
+					startTime +
+					Math.max(
+						stepDurationSeconds * 0.5,
+						noteDurationSeconds - stepDurationSeconds * 1.6
+					);
+				oscillator.frequency.setValueAtTime(baseFrequency, bendStart);
+				oscillator.frequency.linearRampToValueAtTime(
+					targetFrequency,
+					Math.max(bendStart + 0.01, startTime + noteDurationSeconds)
+				);
+			} else {
+				oscillator.frequency.linearRampToValueAtTime(
+					targetFrequency,
+					startTime + noteDurationSeconds
+				);
+			}
 		} else if (arpOffsets.length > 1) {
 			const arpStepSeconds = 0.045;
 			const totalArpSteps = Math.floor(noteDurationSeconds / arpStepSeconds);
 			for (let index = 0; index <= totalArpSteps; index += 1) {
 				const semitoneOffset = arpOffsets[index % arpOffsets.length] ?? 0;
-				const arpFrequency = midiToFrequency(note.pitch + semitoneOffset);
-				osc.frequency.setValueAtTime(
+				const arpFrequency = resolveMidiFrequency(note.pitch + semitoneOffset);
+				oscillator.frequency.setValueAtTime(
 					arpFrequency,
 					startTime + index * arpStepSeconds
 				);
 			}
 		}
 
-		osc.start(startTime);
-		osc.stop(stopTime);
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
 	});
 };
 
-let previewContext: AudioContext | null = null;
-
-export const getOrCreateLiveAudioContext = (): AudioContext => {
-	if (!previewContext) {
-		previewContext = new AudioContext();
+export const playPreviewNote = (
+	pitch: number,
+	channel: Channel,
+	noteOverrides?: Partial<NoteEvent>,
+	stepDurationSeconds = 0.12
+): void => {
+	if (!hasWebAudioSupport()) {
+		return;
 	}
-	if (previewContext.state === "suspended") {
-		void previewContext.resume();
-	}
-	return previewContext;
-};
-
-export const playPreviewNote = (pitch: number, channel: Channel): void => {
+	void ensureToneStarted();
 	const audioContext = getOrCreateLiveAudioContext();
-	const masterGain = audioContext.createGain();
-	masterGain.gain.value = 0.85;
-	masterGain.connect(audioContext.destination);
+	const previewGain = audioContext.createGain();
+	previewGain.gain.value = 0.85;
+	previewGain.connect(getLiveMasterInputNode());
 
 	const previewNote: NoteEvent = {
 		id: "preview",
 		step: 0,
 		pitch,
-		duration: 1.5,
-		velocity: 0.9,
-		pitchBend: 0,
+		duration: noteOverrides?.duration ?? 1.5,
+		velocity: noteOverrides?.velocity ?? 0.9,
+		pitchBend: noteOverrides?.pitchBend ?? 0,
+		bendStyle: noteOverrides?.bendStyle,
+		fadeMode: noteOverrides?.fadeMode,
 	};
 
 	scheduleChannelNote(
 		audioContext,
-		masterGain,
+		previewGain,
 		previewNote,
 		channel,
 		audioContext.currentTime + 0.005,
-		0.12
+		stepDurationSeconds
 	);
 };

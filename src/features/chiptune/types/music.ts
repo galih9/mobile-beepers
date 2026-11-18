@@ -44,9 +44,19 @@ export type ArpMode =
 
 export type ChannelType = "pitch" | "drum";
 
-export type MobileWorkspaceTab = "piano" | "matrix" | "synth";
+export type MobileWorkspaceTab = "all" | "piano" | "matrix" | "synth";
 
-export type EditorTool = "draw" | "erase" | "resize" | "slide";
+export type EditorTool =
+	| "select"
+	| "draw"
+	| "move"
+	| "erase"
+	| "slide"
+	| "fade";
+
+export type NoteBendStyle = "late" | "early" | "continuous";
+
+export type NoteFadeMode = "none" | "fadeIn" | "fadeOut";
 
 export type LoopMode = "song" | "bar";
 
@@ -60,8 +70,12 @@ export interface NoteEvent {
 	duration: number;
 	/** Velocity multiplier (0.1 to 1.0) */
 	velocity: number;
-	/** Semitone pitch slide toward end of note (-12 to +12) */
+	/** Semitone pitch slide toward end of note (-24 to +24) */
 	pitchBend: number;
+	/** Shape of pitch bend transition across the note */
+	bendStyle?: NoteBendStyle;
+	/** Per-note fade override */
+	fadeMode?: NoteFadeMode;
 }
 
 export interface Pattern {
@@ -86,6 +100,8 @@ export interface InstrumentConfiguration {
 	echoMix: number;
 	echoTimeSeconds: number;
 	detuneCents: number;
+	/** UltraBox-style Fade In / Out (-1 = full fade in, 0 = neutral, +1 = full fade out) */
+	fadeInOut?: number;
 }
 
 export interface Channel {

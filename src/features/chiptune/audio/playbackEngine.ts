@@ -1,10 +1,21 @@
+import * as Tone from "tone";
 import type { LoopMode, SongProject } from "../types/music";
 import {
+	ensureToneStarted,
+	getLiveMasterInputNode,
 	getOrCreateLiveAudioContext,
+	readLiveWaveformData,
 	scheduleChannelNote,
 } from "./voiceSynthesizer";
 
 type StepListener = (barIndex: number, stepIndex: number) => void;
+
+const hasWebAudioSupport = (): boolean => {
+	return (
+		typeof window !== "undefined" &&
+		("AudioContext" in window || "webkitAudioContext" in window)
+	);
+};
 
 class ChiptunePlaybackEngine {
 	private isRunning = false;
@@ -26,6 +37,13 @@ class ChiptunePlaybackEngine {
 		this.activeSong = song;
 		this.activeLoopMode = loopMode;
 		this.focusedBarIndex = focusedBarIndex;
+		if (this.isRunning && hasWebAudioSupport()) {
+			try {
+				Tone.getTransport().bpm.value = song.bpm;
+			} catch {
+				// Ignore if transport is unavailable
+			}
+		}
 		if (this.masterGainNode) {
 			const audioContext = getOrCreateLiveAudioContext();
 			this.masterGainNode.gain.setTargetAtTime(
@@ -40,11 +58,19 @@ class ChiptunePlaybackEngine {
 		this.onStepCallback = listener;
 	}
 
+	public getWaveformData(targetArray: Float32Array): void {
+		readLiveWaveformData(targetArray);
+	}
+
 	public start(
 		song: SongProject,
 		startBarIndex: number,
 		loopMode: LoopMode
 	): void {
+		if (!hasWebAudioSupport()) {
+			return;
+		}
+		void ensureToneStarted();
 		const audioContext = getOrCreateLiveAudioContext();
 		if (this.isRunning) {
 			this.stop();
@@ -73,9 +99,19 @@ class ChiptunePlaybackEngine {
 		this.currentStepIndex = 0;
 		this.isRunning = true;
 
+		try {
+			const transport = Tone.getTransport();
+			transport.bpm.value = song.bpm;
+			if (transport.state !== "started") {
+				transport.start();
+			}
+		} catch {
+			// Ignore transport errors in headless environments
+		}
+
 		this.masterGainNode = audioContext.createGain();
 		this.masterGainNode.gain.value = song.masterVolume;
-		this.masterGainNode.connect(audioContext.destination);
+		this.masterGainNode.connect(getLiveMasterInputNode());
 
 		this.nextNoteTime = audioContext.currentTime + 0.04;
 		this.timerId = window.setInterval(() => {
@@ -88,6 +124,17 @@ class ChiptunePlaybackEngine {
 		if (this.timerId !== null) {
 			window.clearInterval(this.timerId);
 			this.timerId = null;
+		}
+		if (hasWebAudioSupport()) {
+			try {
+				Tone.Draw.cancel();
+				const transport = Tone.getTransport();
+				if (transport.state === "started") {
+					transport.stop();
+				}
+			} catch {
+				// Ignore cleanup errors when audio context is unavailable
+			}
 		}
 		if (this.masterGainNode) {
 			this.masterGainNode.disconnect();
@@ -158,16 +205,24 @@ class ChiptunePlaybackEngine {
 
 		const barSnapshot = this.currentBarIndex;
 		const stepSnapshot = this.currentStepIndex;
-		const uiDelayMs = Math.max(
-			0,
-			(scheduledTime - audioContext.currentTime) * 1000
-		);
 
-		window.setTimeout(() => {
-			if (this.isRunning && this.onStepCallback) {
-				this.onStepCallback(barSnapshot, stepSnapshot);
-			}
-		}, uiDelayMs);
+		try {
+			Tone.Draw.schedule(() => {
+				if (this.isRunning && this.onStepCallback) {
+					this.onStepCallback(barSnapshot, stepSnapshot);
+				}
+			}, scheduledTime);
+		} catch {
+			const uiDelayMs = Math.max(
+				0,
+				(scheduledTime - audioContext.currentTime) * 1000
+			);
+			window.setTimeout(() => {
+				if (this.isRunning && this.onStepCallback) {
+					this.onStepCallback(barSnapshot, stepSnapshot);
+				}
+			}, uiDelayMs);
+		}
 
 		if (this.currentStepIndex >= stepsPerBar) {
 			this.currentStepIndex = 0;

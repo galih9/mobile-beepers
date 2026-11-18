@@ -1,12 +1,6 @@
 import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-	type PointerEvent as ReactPointerEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDrop } from "react-dnd";
 import type { FunctionComponent } from "../../../common/types";
 import { playPreviewNote } from "../audio/voiceSynthesizer";
 import { buildPianoRollRows } from "../constants/scalesAndNotes";
@@ -16,9 +10,9 @@ import {
 	getStepsPerBar,
 } from "../store/songHelpers";
 import { useChiptuneStore } from "../store/useChiptuneStore";
-import type { NoteEvent } from "../types/music";
+import { DND_ITEM_TYPES, type InstrumentPresetDragItem } from "./dndTypes";
+import { KonvaPianoRollStage } from "./KonvaPianoRollStage";
 import { PianoRollHeaderStrip } from "./PianoRollHeaderStrip";
-import { renderPianoRollCanvas } from "./pianoRollRenderer";
 
 export const PianoRollEditor = (): FunctionComponent => {
 	const song = useChiptuneStore((state) => state.song);
@@ -30,6 +24,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const defaultNoteDuration = useChiptuneStore(
 		(state) => state.defaultNoteDuration
 	);
+	const pianoRollZoom = useChiptuneStore((state) => state.pianoRollZoom);
 	const scaleLockOnly = useChiptuneStore((state) => state.scaleLockOnly);
 	const showGhostNotes = useChiptuneStore((state) => state.showGhostNotes);
 	const isPlaying = useChiptuneStore((state) => state.isPlaying);
@@ -40,11 +35,20 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const setDefaultNoteDuration = useChiptuneStore(
 		(state) => state.setDefaultNoteDuration
 	);
+	const setPianoRollZoom = useChiptuneStore((state) => state.setPianoRollZoom);
 	const addOrReplaceNote = useChiptuneStore((state) => state.addOrReplaceNote);
 	const removeNoteAt = useChiptuneStore((state) => state.removeNoteAt);
 	const resizeNoteAt = useChiptuneStore((state) => state.resizeNoteAt);
+	const moveNoteAt = useChiptuneStore((state) => state.moveNoteAt);
 	const cycleNotePitchBend = useChiptuneStore(
 		(state) => state.cycleNotePitchBend
+	);
+	const setNotePitchBendAt = useChiptuneStore(
+		(state) => state.setNotePitchBendAt
+	);
+	const cycleNoteFadeAt = useChiptuneStore((state) => state.cycleNoteFadeAt);
+	const transposeCurrentPattern = useChiptuneStore(
+		(state) => state.transposeCurrentPattern
 	);
 	const generateRiffForCurrentPattern = useChiptuneStore(
 		(state) => state.generateRiffForCurrentPattern
@@ -52,16 +56,12 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const clearCurrentPattern = useChiptuneStore(
 		(state) => state.clearCurrentPattern
 	);
+	const applyInstrumentPreset = useChiptuneStore(
+		(state) => state.applyInstrumentPreset
+	);
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const octaveSliderRef = useRef<HTMLInputElement | null>(null);
-	const canvasRef = useRef<HTMLCanvasElement | null>(null);
-	const dragStateRef = useRef<{
-		step: number;
-		pitch: number;
-		wasExisting: boolean;
-		didDragResize: boolean;
-	} | null>(null);
 
 	const [containerWidth, setContainerWidth] = useState(320);
 	const [viewportHeight, setViewportHeight] = useState(240);
@@ -71,6 +71,26 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const currentPatternNumber = getPatternIndexAtBar(
 		activeChannel,
 		selectedBarIndex
+	);
+
+	const [{ isPresetDropOver, draggedPresetName }, dropPresetRef] = useDrop<
+		InstrumentPresetDragItem,
+		void,
+		{ isPresetDropOver: boolean; draggedPresetName: string | null }
+	>(
+		() => ({
+			accept: DND_ITEM_TYPES.INSTRUMENT_PRESET,
+			drop: (item): void => {
+				applyInstrumentPreset(selectedChannelIndex, item.presetId);
+			},
+			collect: (
+				monitor
+			): { isPresetDropOver: boolean; draggedPresetName: string | null } => ({
+				isPresetDropOver: monitor.isOver(),
+				draggedPresetName: monitor.getItem()?.presetName ?? null,
+			}),
+		}),
+		[applyInstrumentPreset, selectedChannelIndex]
 	);
 
 	const rows = useMemo(() => {
@@ -109,13 +129,25 @@ export const PianoRollEditor = (): FunctionComponent => {
 			});
 	}, [song.channels, selectedChannelIndex, selectedBarIndex]);
 
+	const isLargeViewport = containerWidth >= 700;
 	const rowHeight =
-		activeChannel?.type === "drum" ? 28 : scaleLockOnly ? 22 : 18;
-	const keyWidth = 38;
-	const stepWidth = Math.max(
-		16,
+		activeChannel?.type === "drum"
+			? isLargeViewport
+				? 32
+				: 28
+			: scaleLockOnly
+				? isLargeViewport
+					? 24
+					: 22
+				: isLargeViewport
+					? 20
+					: 18;
+	const keyWidth = isLargeViewport ? 56 : 42;
+	const baseStepWidth = Math.max(
+		24,
 		Math.floor((containerWidth - keyWidth) / stepsPerBar)
 	);
+	const stepWidth = Math.max(6, Math.round(baseStepWidth * pianoRollZoom));
 	const maxScrollTop = Math.max(0, rows.length * rowHeight - viewportHeight);
 
 	useEffect(() => {
@@ -136,7 +168,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 		};
 	}, []);
 
-	// Center vertical scroll near middle octave only when switching channel or scale mode
+	// Center vertical scroll near middle octave when switching channel or scale mode
 	const activeChannelId = activeChannel?.id;
 	const activeChannelType = activeChannel?.type;
 	useEffect(() => {
@@ -162,155 +194,6 @@ export const PianoRollEditor = (): FunctionComponent => {
 		rows.length,
 	]);
 
-	useEffect(() => {
-		const canvas = canvasRef.current;
-		if (!canvas || !activeChannel) {
-			return;
-		}
-		renderPianoRollCanvas({
-			canvas,
-			rows,
-			stepsPerBar,
-			stepsPerBeat: song.stepsPerBeat,
-			rowHeight,
-			stepWidth,
-			activeChannel,
-			activeNotes,
-			ghostChannels,
-			showGhostNotes,
-			isPlayingThisBar: isPlaying && playbackBar === selectedBarIndex,
-			playbackStep,
-		});
-	}, [
-		activeChannel,
-		activeNotes,
-		ghostChannels,
-		isPlaying,
-		playbackBar,
-		playbackStep,
-		rowHeight,
-		rows,
-		selectedBarIndex,
-		showGhostNotes,
-		song.stepsPerBeat,
-		stepWidth,
-		stepsPerBar,
-	]);
-
-	const findNoteAtCell = useCallback(
-		(step: number, pitch: number): NoteEvent | undefined => {
-			return activeNotes.find(
-				(note) =>
-					note.pitch === pitch &&
-					step >= note.step &&
-					step < note.step + note.duration
-			);
-		},
-		[activeNotes]
-	);
-
-	const resolveCellFromPointer = (
-		event: ReactPointerEvent<HTMLCanvasElement>
-	): { step: number; pitch: number } | null => {
-		const canvas = canvasRef.current;
-		if (!canvas) {
-			return null;
-		}
-		const rectangle = canvas.getBoundingClientRect();
-		const offsetX = event.clientX - rectangle.left;
-		const offsetY = event.clientY - rectangle.top;
-		const step = Math.max(
-			0,
-			Math.min(stepsPerBar - 1, Math.floor(offsetX / stepWidth))
-		);
-		const rowIndex = Math.max(
-			0,
-			Math.min(rows.length - 1, Math.floor(offsetY / rowHeight))
-		);
-		const row = rows[rowIndex];
-		if (!row) {
-			return null;
-		}
-		return { step, pitch: row.pitch };
-	};
-
-	const handlePointerDown = (
-		event: ReactPointerEvent<HTMLCanvasElement>
-	): void => {
-		if (!activeChannel) {
-			return;
-		}
-		const cell = resolveCellFromPointer(event);
-		if (!cell) {
-			return;
-		}
-		event.currentTarget.setPointerCapture(event.pointerId);
-
-		const existing = findNoteAtCell(cell.step, cell.pitch);
-		if (activeTool === "slide") {
-			if (existing) {
-				cycleNotePitchBend(cell.step, cell.pitch);
-			}
-			return;
-		}
-
-		if (existing) {
-			dragStateRef.current = {
-				step: existing.step,
-				pitch: existing.pitch,
-				wasExisting: true,
-				didDragResize: false,
-			};
-			playPreviewNote(existing.pitch, activeChannel);
-			return;
-		}
-
-		const initialDuration =
-			activeChannel.type === "drum" ? 1 : defaultNoteDuration;
-		addOrReplaceNote({
-			step: cell.step,
-			pitch: cell.pitch,
-			duration: initialDuration,
-			velocity: 0.9,
-			pitchBend: 0,
-		});
-		playPreviewNote(cell.pitch, activeChannel);
-		dragStateRef.current = {
-			step: cell.step,
-			pitch: cell.pitch,
-			wasExisting: false,
-			didDragResize: false,
-		};
-	};
-
-	const handlePointerMove = (
-		event: ReactPointerEvent<HTMLCanvasElement>
-	): void => {
-		const drag = dragStateRef.current;
-		if (!drag || !activeChannel || activeChannel.type === "drum") {
-			return;
-		}
-		if (event.buttons === 0 && event.pointerType === "mouse") {
-			return;
-		}
-		const cell = resolveCellFromPointer(event);
-		if (!cell) {
-			return;
-		}
-		if (cell.step > drag.step) {
-			drag.didDragResize = true;
-			resizeNoteAt(drag.step, drag.pitch, cell.step - drag.step + 1);
-		}
-	};
-
-	const handlePointerUp = (): void => {
-		const drag = dragStateRef.current;
-		if (drag && drag.wasExisting && !drag.didDragResize) {
-			removeNoteAt(drag.step, drag.pitch);
-		}
-		dragStateRef.current = null;
-	};
-
 	const nudgeOctaveScroll = (deltaRows: number): void => {
 		const container = scrollContainerRef.current;
 		if (!container) {
@@ -334,29 +217,42 @@ export const PianoRollEditor = (): FunctionComponent => {
 
 	return (
 		<section
+			ref={(element): void => {
+				dropPresetRef(element);
+			}}
 			aria-label="Piano roll pattern editor"
-			className="flex min-h-0 flex-1 flex-col border-b border-slate-800 bg-slate-950"
+			className={`relative flex min-h-0 flex-1 flex-col border-b border-slate-800 bg-slate-950 transition ${
+				isPresetDropOver ? "ring-2 ring-inset ring-cyan-400" : ""
+			}`}
 		>
 			<PianoRollHeaderStrip
 				activeChannel={activeChannel}
 				activeTool={activeTool}
 				defaultNoteDuration={defaultNoteDuration}
 				patternNumber={currentPatternNumber}
+				pianoRollZoom={pianoRollZoom}
 				selectedBarIndex={selectedBarIndex}
 				onClearPattern={clearCurrentPattern}
 				onGenerateRiff={generateRiffForCurrentPattern}
 				onSelectDuration={setDefaultNoteDuration}
-				onToggleSlideTool={(): void => {
-					setActiveTool(activeTool === "slide" ? "draw" : "slide");
-				}}
+				onSelectTool={setActiveTool}
+				onSelectZoom={setPianoRollZoom}
+				onTransposePattern={transposeCurrentPattern}
 			/>
 
-			{/* Main Piano Roll Body: Left Pitch Labels + Center Canvas + Right Vertical Octave Slider */}
+			{isPresetDropOver && (
+				<div className="pointer-events-none absolute inset-x-4 top-11 z-20 rounded-lg border border-cyan-400/70 bg-slate-950/90 px-3 py-1.5 text-center text-xs font-semibold text-cyan-200 shadow-lg">
+					Drop preset {draggedPresetName ? `"${draggedPresetName}" ` : ""}to
+					apply to {activeChannel.name}
+				</div>
+			)}
+
+			{/* Main Piano Roll Body: Sticky Pitch Key Rail + Interactive Konva Stage + Vertical Octave Slider */}
 			<div className="flex min-h-0 flex-1">
 				<div
 					ref={scrollContainerRef}
 					aria-label="Piano roll grid"
-					className="no-scrollbar relative flex min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+					className="no-scrollbar relative flex min-h-0 flex-1 overflow-auto"
 					role="region"
 					tabIndex={0}
 					onScroll={(event): void => {
@@ -367,9 +263,9 @@ export const PianoRollEditor = (): FunctionComponent => {
 						}
 					}}
 				>
-					{/* Compact Left Pitch / Drum Label Rail */}
+					{/* Sticky Left Pitch / Drum Label Rail */}
 					<div
-						className="shrink-0 border-r border-slate-800 bg-slate-950"
+						className="sticky left-0 z-10 shrink-0 border-r border-slate-800 bg-slate-950"
 						style={{ width: `${keyWidth}px` }}
 					>
 						{rows.map((row) => (
@@ -377,9 +273,9 @@ export const PianoRollEditor = (): FunctionComponent => {
 								key={`key-${row.pitch}`}
 								style={{ height: `${rowHeight}px` }}
 								type="button"
-								className={`flex w-full items-center justify-between border-b border-slate-800/60 px-1 font-mono text-[10px] font-semibold transition active:bg-cyan-500/30 ${
+								className={`flex w-full items-center justify-between border-b border-slate-800/60 px-1.5 font-mono text-[10px] font-semibold transition active:bg-cyan-500/30 ${
 									row.isRoot
-										? "bg-cyan-500/15 text-cyan-300"
+										? "bg-amber-500/15 text-amber-200"
 										: row.isSharp
 											? "bg-slate-900 text-slate-400"
 											: "bg-slate-950 text-slate-300"
@@ -389,24 +285,48 @@ export const PianoRollEditor = (): FunctionComponent => {
 								}}
 							>
 								<span className="truncate">{row.label}</span>
+								{row.isRoot && isLargeViewport && (
+									<span className="hidden rounded bg-amber-400/20 px-1 text-[8px] font-bold text-amber-300 md:inline">
+										R
+									</span>
+								)}
 							</button>
 						))}
 					</div>
 
-					{/* Interactive 16-Step Note Canvas */}
+					{/* Interactive Konva Stage */}
 					<div className="relative min-w-0 flex-1">
-						<canvas
-							ref={canvasRef}
-							className="block cursor-pointer touch-none"
-							onPointerDown={handlePointerDown}
-							onPointerMove={handlePointerMove}
-							onPointerUp={handlePointerUp}
+						<KonvaPianoRollStage
+							activeChannel={activeChannel}
+							activeNotes={activeNotes}
+							activeTool={activeTool}
+							defaultNoteDuration={defaultNoteDuration}
+							ghostChannels={ghostChannels}
+							isPlayingThisBar={isPlaying && playbackBar === selectedBarIndex}
+							playbackStep={playbackStep}
+							rowHeight={rowHeight}
+							rows={rows}
+							showGhostNotes={showGhostNotes}
+							stepWidth={stepWidth}
+							stepsPerBar={stepsPerBar}
+							stepsPerBeat={song.stepsPerBeat}
+							onAddOrReplaceNote={addOrReplaceNote}
+							onCycleNoteFade={cycleNoteFadeAt}
+							onCyclePitchBend={cycleNotePitchBend}
+							onMoveNote={moveNoteAt}
+							onRemoveNote={removeNoteAt}
+							onResizeNote={resizeNoteAt}
+							onSetNotePitchBend={setNotePitchBendAt}
+							onPreviewPitch={(pitch, note): void => {
+								const stepSeconds = 60 / song.bpm / song.stepsPerBeat;
+								playPreviewNote(pitch, activeChannel, note, stepSeconds);
+							}}
 						/>
 					</div>
 				</div>
 
 				{/* UltraBox Signature Right-Edge Vertical Octave Slider */}
-				<div className="flex w-7 shrink-0 flex-col items-center justify-between border-l border-slate-800 bg-slate-900 py-1">
+				<div className="flex w-7 shrink-0 flex-col items-center justify-between border-l border-slate-800 bg-slate-900 py-1 md:w-8">
 					<button
 						aria-label="Scroll pitch view up"
 						className="flex size-5 items-center justify-center rounded text-slate-300 hover:bg-slate-800 hover:text-white"

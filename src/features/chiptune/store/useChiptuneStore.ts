@@ -5,11 +5,16 @@ import { getPresetConfigurationById } from "../constants/instrumentPresets";
 import type { MusicalKey, ScaleType, SongProject } from "../types/music";
 import {
 	clonePatternToBarInSong,
+	copyBarPatternSlotInSong,
 	createNewChannel,
+	cycleNoteFadeInSong,
 	cycleNotePitchBendInSong,
 	generateRiffInChannelPattern,
 	getStepsPerBar,
+	moveNoteInSong,
+	reorderChannelsInSong,
 	setBarPatternIndexInSong,
+	setNotePitchBendInSong,
 	transposeChannelPattern,
 	updateChannelPatternNotes,
 } from "./songHelpers";
@@ -30,11 +35,13 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			savedSongs: [],
 			selectedChannelIndex: 0,
 			selectedBarIndex: 0,
-			activeWorkspaceTab: "piano",
+			activeWorkspaceTab: "all",
 			activeTool: "draw",
 			defaultNoteDuration: 2,
+			pianoRollZoom: 1,
 			scaleLockOnly: true,
 			showGhostNotes: true,
+			followPlayhead: true,
 			isPlaying: false,
 			loopMode: "song",
 			playbackBar: 0,
@@ -49,11 +56,36 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			setDefaultNoteDuration: (duration): void => {
 				set({ defaultNoteDuration: duration });
 			},
+			setPianoRollZoom: (zoom): void => {
+				const clamped = Math.max(0.25, Math.min(2.5, zoom));
+				set({ pianoRollZoom: clamped });
+			},
 			toggleScaleLockOnly: (): void => {
 				set((state) => ({ scaleLockOnly: !state.scaleLockOnly }));
 			},
 			toggleShowGhostNotes: (): void => {
 				set((state) => ({ showGhostNotes: !state.showGhostNotes }));
+			},
+			setFollowPlayhead: (follow): void => {
+				set((state) => ({
+					followPlayhead: follow,
+					selectedBarIndex:
+						follow && state.isPlaying
+							? state.playbackBar
+							: state.selectedBarIndex,
+				}));
+			},
+			toggleFollowPlayhead: (): void => {
+				set((state) => {
+					const nextFollow = !state.followPlayhead;
+					return {
+						followPlayhead: nextFollow,
+						selectedBarIndex:
+							nextFollow && state.isPlaying
+								? state.playbackBar
+								: state.selectedBarIndex,
+					};
+				});
 			},
 			setSelectedChannelIndex: (index): void => {
 				set((state) => ({
@@ -78,7 +110,16 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				set({ loopMode: mode });
 			},
 			setPlaybackPosition: (barIndex, stepIndex): void => {
-				set({ playbackBar: barIndex, playbackStep: stepIndex });
+				set((state) => {
+					const nextSelectedBar = state.followPlayhead
+						? Math.max(0, Math.min(state.song.totalBars - 1, barIndex))
+						: state.selectedBarIndex;
+					return {
+						playbackBar: barIndex,
+						playbackStep: stepIndex,
+						selectedBarIndex: nextSelectedBar,
+					};
+				});
 			},
 
 			updateSongMetadata: (updates): void => {
@@ -185,6 +226,37 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			reorderChannels: (fromIndex, toIndex): void => {
+				set((state) => {
+					const updatedSong = reorderChannelsInSong(
+						state.song,
+						fromIndex,
+						toIndex
+					);
+					if (updatedSong === state.song) {
+						return state;
+					}
+					let nextSelectedChannelIndex = state.selectedChannelIndex;
+					if (state.selectedChannelIndex === fromIndex) {
+						nextSelectedChannelIndex = toIndex;
+					} else if (
+						fromIndex < state.selectedChannelIndex &&
+						toIndex >= state.selectedChannelIndex
+					) {
+						nextSelectedChannelIndex -= 1;
+					} else if (
+						fromIndex > state.selectedChannelIndex &&
+						toIndex <= state.selectedChannelIndex
+					) {
+						nextSelectedChannelIndex += 1;
+					}
+					return {
+						song: updatedSong,
+						selectedChannelIndex: nextSelectedChannelIndex,
+					};
+				});
+			},
+
 			toggleChannelMute: (channelIndex): void => {
 				set((state) => ({
 					song: {
@@ -225,6 +297,23 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			clonePatternToBar: (channelIndex, barIndex): void => {
 				set((state) => ({
 					song: clonePatternToBarInSong(state.song, channelIndex, barIndex),
+				}));
+			},
+
+			copyBarPatternSlot: (
+				sourceChannelIndex,
+				sourceBarIndex,
+				targetChannelIndex,
+				targetBarIndex
+			): void => {
+				set((state) => ({
+					song: copyBarPatternSlotInSong(
+						state.song,
+						sourceChannelIndex,
+						sourceBarIndex,
+						targetChannelIndex,
+						targetBarIndex
+					),
 				}));
 			},
 
@@ -303,9 +392,49 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			moveNoteAt: (fromStep, fromPitch, toStep, toPitch): void => {
+				set((state) => ({
+					song: moveNoteInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						fromStep,
+						fromPitch,
+						toStep,
+						toPitch
+					),
+				}));
+			},
+
 			cycleNotePitchBend: (step, pitch): void => {
 				set((state) => ({
 					song: cycleNotePitchBendInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						step,
+						pitch
+					),
+				}));
+			},
+
+			setNotePitchBendAt: (step, pitch, pitchBend, bendStyle): void => {
+				set((state) => ({
+					song: setNotePitchBendInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						step,
+						pitch,
+						pitchBend,
+						bendStyle
+					),
+				}));
+			},
+
+			cycleNoteFadeAt: (step, pitch): void => {
+				set((state) => ({
+					song: cycleNoteFadeInSong(
 						state.song,
 						state.selectedChannelIndex,
 						state.selectedBarIndex,
@@ -463,6 +592,26 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					savedSongs: state.savedSongs.filter((item) => item.id !== songId),
 				}));
 			},
+
+			resetEverything: (): void => {
+				set({
+					song: createBlankSongProject("New Chiptune"),
+					savedSongs: [],
+					selectedChannelIndex: 0,
+					selectedBarIndex: 0,
+					activeWorkspaceTab: "all",
+					activeTool: "draw",
+					defaultNoteDuration: 2,
+					pianoRollZoom: 1,
+					scaleLockOnly: true,
+					showGhostNotes: true,
+					followPlayhead: true,
+					isPlaying: false,
+					loopMode: "song",
+					playbackBar: 0,
+					playbackStep: 0,
+				});
+			},
 		}),
 		{
 			name: "ultrabeep-chiptune-store-v1",
@@ -472,6 +621,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				scaleLockOnly: state.scaleLockOnly,
 				showGhostNotes: state.showGhostNotes,
 				defaultNoteDuration: state.defaultNoteDuration,
+				followPlayhead: state.followPlayhead,
 			}),
 		}
 	)

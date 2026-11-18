@@ -1,27 +1,47 @@
 import { useEffect, useState } from "react";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import type { FunctionComponent } from "../../../common/types";
+import { registerChiptuneAgentApi } from "../api/chiptuneAgentApi";
 import { chiptunePlaybackEngine } from "../audio/playbackEngine";
 import { useChiptuneStore } from "../store/useChiptuneStore";
+import type { MobileWorkspaceTab } from "../types/music";
+import { ConfirmResetDialog } from "./ConfirmResetDialog";
 import { InstrumentSynthPanel } from "./InstrumentSynthPanel";
 import { PianoRollEditor } from "./PianoRollEditor";
 import { ProjectManagerDialog } from "./ProjectManagerDialog";
 import { SongMatrixPanel } from "./SongMatrixPanel";
 import { TransportHeader } from "./TransportHeader";
 
+const MOBILE_TABS: Array<{ id: MobileWorkspaceTab; label: string }> = [
+	{ id: "all", label: "Split" },
+	{ id: "piano", label: "Piano" },
+	{ id: "matrix", label: "Matrix" },
+	{ id: "synth", label: "Synth" },
+];
+
 export const ChiptuneStudioPage = (): FunctionComponent => {
 	const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+	const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
 	const song = useChiptuneStore((state) => state.song);
 	const isPlaying = useChiptuneStore((state) => state.isPlaying);
 	const loopMode = useChiptuneStore((state) => state.loopMode);
 	const selectedBarIndex = useChiptuneStore((state) => state.selectedBarIndex);
+	const activeWorkspaceTab = useChiptuneStore(
+		(state) => state.activeWorkspaceTab
+	);
+	const setActiveWorkspaceTab = useChiptuneStore(
+		(state) => state.setActiveWorkspaceTab
+	);
 	const setIsPlaying = useChiptuneStore((state) => state.setIsPlaying);
 	const setPlaybackPosition = useChiptuneStore(
 		(state) => state.setPlaybackPosition
 	);
 
-	// Register step listener from Web Audio scheduler
+	// Register step listener from Tone.js / Web Audio scheduler and global AI Agent API
 	useEffect(() => {
+		registerChiptuneAgentApi();
 		chiptunePlaybackEngine.setStepListener((barIndex, stepIndex) => {
 			setPlaybackPosition(barIndex, stepIndex);
 		});
@@ -70,42 +90,109 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 		};
 	}, [setIsPlaying]);
 
+	const showPianoMobile =
+		activeWorkspaceTab === "all" || activeWorkspaceTab === "piano";
+	const showMatrixMobile =
+		activeWorkspaceTab === "all" || activeWorkspaceTab === "matrix";
+	const showSynthMobile =
+		activeWorkspaceTab === "all" || activeWorkspaceTab === "synth";
+
 	return (
-		<div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-950 text-slate-100">
-			<TransportHeader
-				onOpenProjectModal={(): void => {
-					setIsProjectModalOpen(true);
-				}}
-			/>
+		<DndProvider backend={HTML5Backend}>
+			<div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-950 text-slate-100">
+				<TransportHeader
+					onOpenProjectModal={(): void => {
+						setIsProjectModalOpen(true);
+					}}
+					onOpenResetModal={(): void => {
+						setIsResetModalOpen(true);
+					}}
+				/>
 
-			{/* Mobile / Tablet Single-Screen UltraBox Layout (< lg) */}
-			<main className="flex min-h-0 flex-1 flex-col lg:hidden">
-				<div className="flex min-h-0 flex-[1.35] flex-col">
-					<PianoRollEditor />
-				</div>
-				<SongMatrixPanel />
-				<div className="flex min-h-0 flex-1 flex-col">
-					<InstrumentSynthPanel />
-				</div>
-			</main>
+				{/* Compact Mobile Workspace Switcher (< md) */}
+				<nav
+					aria-label="Mobile workspace view"
+					className="flex shrink-0 items-center justify-between gap-1 border-b border-slate-800 bg-slate-900/90 px-2 py-1 md:hidden"
+				>
+					<div className="flex items-center gap-1">
+						{MOBILE_TABS.map((tab) => (
+							<button
+								key={tab.id}
+								aria-pressed={activeWorkspaceTab === tab.id}
+								type="button"
+								className={`rounded px-2.5 py-0.5 text-[11px] font-bold transition ${
+									activeWorkspaceTab === tab.id
+										? "bg-cyan-500/25 text-cyan-200"
+										: "text-slate-400 hover:text-white"
+								}`}
+								onClick={(): void => {
+									setActiveWorkspaceTab(tab.id);
+								}}
+							>
+								{tab.label}
+							</button>
+						))}
+					</div>
+					<span className="truncate font-mono text-[10px] font-semibold text-slate-400">
+						{song.bpm} BPM · {song.rootKey}
+					</span>
+				</nav>
 
-			{/* Desktop Multi-Pane UltraBox Workstation (>= lg) */}
-			<main className="hidden min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(0,1fr)_23rem]">
-				<div className="flex min-h-0 flex-col border-r border-slate-800">
-					<PianoRollEditor />
-					<SongMatrixPanel />
-				</div>
-				<aside className="flex min-h-0 flex-col bg-slate-950">
-					<InstrumentSynthPanel />
-				</aside>
-			</main>
+				{/* Unified Responsive Studio Layout: Mobile (<md) -> Tablet (md..lg) -> Desktop (lg+) */}
+				<main className="flex min-h-0 flex-1 flex-col md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:grid-rows-[minmax(0,1.25fr)_minmax(14rem,0.9fr)] lg:grid-cols-[minmax(0,1fr)_25rem] lg:grid-rows-[minmax(0,1fr)_auto] xl:grid-cols-[minmax(0,1fr)_28rem]">
+					{/* Pane 1: Konva Piano Roll */}
+					<div
+						className={`min-h-0 flex-col ${
+							showPianoMobile
+								? activeWorkspaceTab === "piano"
+									? "flex flex-1"
+									: "flex flex-[1.35]"
+								: "hidden"
+						} md:col-span-2 md:row-start-1 md:flex lg:col-span-1 lg:col-start-1 lg:row-start-1 lg:border-r lg:border-slate-800`}
+					>
+						<PianoRollEditor />
+					</div>
 
-			<ProjectManagerDialog
-				isOpen={isProjectModalOpen}
-				onClose={(): void => {
-					setIsProjectModalOpen(false);
-				}}
-			/>
-		</div>
+					{/* Pane 2: Drag-and-Drop Song Matrix */}
+					<div
+						className={`min-h-0 flex-col ${
+							showMatrixMobile
+								? activeWorkspaceTab === "matrix"
+									? "flex flex-1 overflow-y-auto"
+									: "flex shrink-0"
+								: "hidden"
+						} md:col-start-1 md:row-start-2 md:flex md:overflow-auto md:border-r md:border-slate-800 lg:col-start-1 lg:row-start-2 lg:shrink-0 lg:overflow-visible`}
+					>
+						<SongMatrixPanel />
+					</div>
+
+					{/* Pane 3: Instrument Synth & Tone.js Oscilloscope Inspector */}
+					<aside
+						className={`min-h-0 flex-col bg-slate-950 ${
+							showSynthMobile ? "flex flex-1" : "hidden"
+						} md:col-start-2 md:row-start-2 md:flex lg:col-start-2 lg:row-span-2 lg:row-start-1`}
+					>
+						<InstrumentSynthPanel />
+					</aside>
+				</main>
+
+				<ProjectManagerDialog
+					isOpen={isProjectModalOpen}
+					onClose={(): void => {
+						setIsProjectModalOpen(false);
+					}}
+					onRequestReset={(): void => {
+						setIsResetModalOpen(true);
+					}}
+				/>
+
+				<ConfirmResetDialog
+					isOpen={isResetModalOpen}
+					onClose={(): void => {
+						setIsResetModalOpen(false);
+					}}
+				/>
+			</div>
+		</DndProvider>
 	);
 };

@@ -20,11 +20,13 @@ import { SliderControl } from "./SliderControl";
 interface ProjectManagerDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
+	onRequestReset: () => void;
 }
 
 export const ProjectManagerDialog = ({
 	isOpen,
 	onClose,
+	onRequestReset,
 }: ProjectManagerDialogProps): FunctionComponent => {
 	const titleId = useId();
 	const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -352,6 +354,18 @@ export const ProjectManagerDialog = ({
 						className="size-4 text-amber-300"
 					/>
 					<span>New Blank Song</span>
+				</button>
+
+				<button
+					className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-xs font-bold text-rose-200 hover:border-rose-400 hover:bg-rose-500/20"
+					type="button"
+					onClick={(): void => {
+						dialogRef.current?.close();
+						onRequestReset();
+					}}
+				>
+					<TrashIcon aria-hidden="true" className="size-4 text-rose-400" />
+					<span>Delete / Reset Everything...</span>
 				</button>
 			</div>
 
