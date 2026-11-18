@@ -70,6 +70,8 @@ export type SfxGeneratorArchetype =
 	| "attack"
 	| "jump"
 	| "coin"
+	| "boom"
+	| "blip"
 	| "random";
 
 export interface NoteEvent {
@@ -161,6 +163,35 @@ export interface PianoRollRow {
 	isRoot: boolean;
 	isSharp: boolean;
 	accentColor?: string;
+}
+
+export interface BarMatrixSelection {
+	startBar: number;
+	endBar: number;
+	startChannel: number;
+	endChannel: number;
+}
+
+export interface CopiedBarSlot {
+	channelOffset: number;
+	channelType: ChannelType;
+	channelName: string;
+	barOffset: number;
+	patternNumber: number;
+	patternNotes?: Array<NoteEvent>;
+}
+
+export interface CopiedBarsClipboard {
+	barCount: number;
+	channelCount: number;
+	slots: Array<CopiedBarSlot>;
+}
+
+export interface HistorySnapshot {
+	song: SongProject;
+	selectedChannelIndex?: number;
+	selectedBarIndex?: number;
+	barSelection?: BarMatrixSelection | null;
 }
 
 export interface InstrumentPresetDefinition {

@@ -872,6 +872,845 @@ const retroJumpProject: SongProject = {
 	],
 };
 
+const explosionProject: SongProject = {
+	id: "sfx-explosion",
+	title: "8-Bit Explosion",
+	author: "UltraBeep SFX",
+	bpm: 180,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "chromatic",
+	masterVolume: 0.9,
+	updatedAt: 1700000109000,
+	channels: [
+		{
+			id: "sfx-boom-sub",
+			name: "Pitch Drop Sub",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[2] ?? "#ff9233",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-triangle-bass").configuration,
+				volume: 0.92,
+				attack: 0.002,
+				decay: 0.22,
+				sustain: 0.4,
+				release: 0.08,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 52, 6, -24, 1.0, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+						createSfxNote(6, 36, 6, -12, 0.85, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-boom-crunch",
+			name: "Low Crunch Saw",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("vrc6-saw-lead").configuration,
+				volume: 0.72,
+				attack: 0.003,
+				decay: 0.16,
+				sustain: 0.35,
+				release: 0.06,
+				filterCutoff: 4800,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 64, 4, -22, 0.95, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+						createSfxNote(4, 48, 4, -18, 0.8, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-boom-noise",
+			name: "Noise Crash",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.95,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 0, 1, 0, 1.0),
+						createSfxNote(0, 1, 1, 0, 1.0),
+						createSfxNote(1, 4, 1, 0, 0.9),
+						createSfxNote(2, 4, 1, 0, 0.8),
+						createSfxNote(4, 1, 1, 0, 0.75),
+						createSfxNote(6, 0, 1, 0, 0.6),
+					],
+				},
+			},
+		},
+	],
+};
+
+const extraLifeProject: SongProject = {
+	id: "sfx-extra-life",
+	title: "1-Up Extra Life",
+	author: "UltraBeep SFX",
+	bpm: 220,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "major",
+	masterVolume: 0.88,
+	updatedAt: 1700000110000,
+	channels: [
+		{
+			id: "sfx-1up-lead",
+			name: "1-Up Pulse Lead",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[0] ?? "#00c7ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-25").configuration,
+				volume: 0.78,
+				attack: 0.003,
+				decay: 0.1,
+				sustain: 0.6,
+				release: 0.05,
+				echoMix: 0.16,
+				echoTimeSeconds: 0.1,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 64, 1, 0, 0.92),
+						createSfxNote(2, 67, 1, 0, 0.94),
+						createSfxNote(4, 76, 1, 0, 0.96),
+						createSfxNote(6, 72, 1, 0, 0.95),
+						createSfxNote(8, 74, 1, 0, 0.95),
+						createSfxNote(10, 79, 5, 0, 1.0, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-1up-sparkle",
+			name: "Sparkle Harmony",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-12").configuration,
+				volume: 0.6,
+				attack: 0.003,
+				decay: 0.09,
+				sustain: 0.5,
+				release: 0.05,
+				echoMix: 0.2,
+				echoTimeSeconds: 0.12,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(4, 79, 1, 0, 0.8),
+						createSfxNote(6, 76, 1, 0, 0.82),
+						createSfxNote(8, 78, 1, 0, 0.84),
+						createSfxNote(10, 83, 5, 0, 0.9, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-1up-blip",
+			name: "Chime Blip",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.7,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [createSfxNote(10, 7, 1, 0, 0.9)],
+				},
+			},
+		},
+	],
+};
+
+const secretUnlockedProject: SongProject = {
+	id: "sfx-secret-unlocked",
+	title: "Secret Unlocked",
+	author: "UltraBeep SFX",
+	bpm: 175,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "G",
+	scale: "chromatic",
+	masterVolume: 0.88,
+	updatedAt: 1700000111000,
+	channels: [
+		{
+			id: "sfx-secret-fm",
+			name: "Mystery FM Chime",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[0] ?? "#00c7ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("genesis-fm-bell").configuration,
+				volume: 0.72,
+				decay: 0.25,
+				sustain: 0.45,
+				echoMix: 0.26,
+				echoTimeSeconds: 0.16,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 67, 1, 0, 0.9),
+						createSfxNote(2, 66, 1, 0, 0.9),
+						createSfxNote(4, 63, 1, 0, 0.92),
+						createSfxNote(6, 57, 1, 0, 0.92),
+						createSfxNote(8, 56, 1, 0, 0.94),
+						createSfxNote(10, 64, 1, 0, 0.95),
+						createSfxNote(12, 68, 1, 0, 0.96),
+						createSfxNote(14, 72, 2, 0, 1.0, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-secret-pulse",
+			name: "Pulse Shimmer",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-12").configuration,
+				volume: 0.52,
+				echoMix: 0.22,
+				echoTimeSeconds: 0.14,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(10, 59, 1, 0, 0.8),
+						createSfxNote(12, 64, 1, 0, 0.85),
+						createSfxNote(14, 76, 2, 0, 0.95, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-secret-sub",
+			name: "Sub Resonance",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[2] ?? "#ff9233",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-triangle-bass").configuration,
+				volume: 0.65,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 43, 6, 0, 0.7),
+						createSfxNote(8, 40, 4, 0, 0.75),
+						createSfxNote(14, 48, 2, 0, 0.85),
+					],
+				},
+			},
+		},
+	],
+};
+
+const shieldDeflectProject: SongProject = {
+	id: "sfx-shield-deflect",
+	title: "Shield Parry / Deflect",
+	author: "UltraBeep SFX",
+	bpm: 190,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "chromatic",
+	masterVolume: 0.88,
+	updatedAt: 1700000112000,
+	channels: [
+		{
+			id: "sfx-deflect-ping",
+			name: "Metallic Clink",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[0] ?? "#00c7ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("genesis-fm-bell").configuration,
+				volume: 0.82,
+				attack: 0.002,
+				decay: 0.1,
+				sustain: 0.2,
+				release: 0.04,
+				filterCutoff: 9200,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 83, 2, 4, 1.0, {
+							bendStyle: "early",
+							fadeMode: "fadeOut",
+						}),
+						createSfxNote(2, 81, 3, -8, 0.85, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-deflect-spark",
+			name: "Spark Pulse",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-12").configuration,
+				volume: 0.65,
+				attack: 0.002,
+				decay: 0.08,
+				sustain: 0.2,
+				release: 0.04,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 79, 1, 7, 0.95, { bendStyle: "early" }),
+						createSfxNote(1, 84, 2, -12, 0.88, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-deflect-click",
+			name: "Noise Deflect",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.78,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 3, 1, 0, 0.95),
+						createSfxNote(1, 7, 1, 0, 0.9),
+					],
+				},
+			},
+		},
+	],
+};
+
+const warpTeleportProject: SongProject = {
+	id: "sfx-warp-teleport",
+	title: "Warp Gate Teleport",
+	author: "UltraBeep SFX",
+	bpm: 165,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "chromatic",
+	masterVolume: 0.88,
+	updatedAt: 1700000113000,
+	channels: [
+		{
+			id: "sfx-warp-beam",
+			name: "Warp Beam",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[6] ?? "#38bdf8",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("gb-square-50").configuration,
+				volume: 0.78,
+				attack: 0.003,
+				decay: 0.16,
+				sustain: 0.55,
+				release: 0.08,
+				echoMix: 0.22,
+				echoTimeSeconds: 0.11,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 48, 3, 20, 0.92, { bendStyle: "continuous" }),
+						createSfxNote(3, 68, 3, -16, 0.94, { bendStyle: "continuous" }),
+						createSfxNote(6, 52, 3, 24, 0.96, { bendStyle: "continuous" }),
+						createSfxNote(9, 76, 6, -20, 0.98, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-warp-phase",
+			name: "Phase Resonance",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-12").configuration,
+				volume: 0.58,
+				echoMix: 0.25,
+				echoTimeSeconds: 0.13,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(1, 60, 3, 18, 0.8, { bendStyle: "continuous" }),
+						createSfxNote(4, 74, 3, -14, 0.85, { bendStyle: "continuous" }),
+						createSfxNote(7, 64, 3, 20, 0.9, { bendStyle: "continuous" }),
+						createSfxNote(10, 84, 5, -24, 0.92, {
+							bendStyle: "continuous",
+							fadeMode: "fadeOut",
+						}),
+					],
+				},
+			},
+		},
+	],
+};
+
+const stageClearFanfareProject: SongProject = {
+	id: "sfx-stage-clear",
+	title: "Stage Clear Fanfare",
+	author: "UltraBeep SFX",
+	bpm: 155,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 2,
+	loopStartBar: 0,
+	loopEndBar: 1,
+	swing: 0,
+	rootKey: "C",
+	scale: "major",
+	masterVolume: 0.86,
+	updatedAt: 1700000114000,
+	channels: [
+		{
+			id: "sfx-clear-brass",
+			name: "Hero Brass",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[0] ?? "#00c7ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("vrc6-saw-lead").configuration,
+				volume: 0.74,
+			},
+			barSequence: [1, 2],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 60, 2, 0, 0.95),
+						createSfxNote(3, 60, 1, 0, 0.9),
+						createSfxNote(4, 60, 2, 0, 0.95),
+						createSfxNote(6, 60, 2, 0, 0.95),
+						createSfxNote(8, 62, 4, 0, 0.95),
+						createSfxNote(12, 64, 4, 0, 1.0),
+					],
+				},
+				"2": {
+					index: 2,
+					notes: [
+						createSfxNote(0, 65, 2, 0, 0.95),
+						createSfxNote(2, 67, 2, 0, 0.95),
+						createSfxNote(4, 69, 2, 0, 0.95),
+						createSfxNote(6, 71, 2, 0, 0.95),
+						createSfxNote(8, 72, 8, 0, 1.0, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-clear-arp",
+			name: "Arp Harmony",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-25").configuration,
+				volume: 0.58,
+			},
+			barSequence: [1, 2],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 52, 2, 0, 0.8),
+						createSfxNote(4, 52, 2, 0, 0.8),
+						createSfxNote(8, 55, 4, 0, 0.85),
+						createSfxNote(12, 55, 4, 0, 0.85),
+					],
+				},
+				"2": {
+					index: 2,
+					notes: [
+						createSfxNote(0, 57, 2, 0, 0.85),
+						createSfxNote(4, 53, 2, 0, 0.85),
+						createSfxNote(8, 67, 8, 0, 0.9, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-clear-bass",
+			name: "Walking Bass",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[2] ?? "#ff9233",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-triangle-bass").configuration,
+				volume: 0.82,
+			},
+			barSequence: [1, 2],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 48, 3, 0, 0.9),
+						createSfxNote(4, 48, 3, 0, 0.9),
+						createSfxNote(8, 43, 3, 0, 0.9),
+						createSfxNote(12, 48, 3, 0, 0.9),
+					],
+				},
+				"2": {
+					index: 2,
+					notes: [
+						createSfxNote(0, 41, 2, 0, 0.9),
+						createSfxNote(4, 43, 4, 0, 0.9),
+						createSfxNote(8, 48, 8, 0, 0.95),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-clear-drums",
+			name: "Marching Drums",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.85,
+			},
+			barSequence: [1, 2],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 0, 1, 0, 0.95),
+						createSfxNote(0, 2, 1, 0, 0.6),
+						createSfxNote(4, 1, 1, 0, 0.9),
+						createSfxNote(6, 2, 1, 0, 0.6),
+						createSfxNote(8, 0, 1, 0, 0.95),
+						createSfxNote(12, 1, 1, 0, 0.9),
+						createSfxNote(14, 3, 1, 0, 0.75),
+					],
+				},
+				"2": {
+					index: 2,
+					notes: [
+						createSfxNote(0, 0, 1, 0, 0.95),
+						createSfxNote(2, 1, 1, 0, 0.85),
+						createSfxNote(4, 1, 1, 0, 0.85),
+						createSfxNote(6, 1, 1, 0, 0.9),
+						createSfxNote(7, 1, 1, 0, 0.9),
+						createSfxNote(8, 0, 1, 0, 1.0),
+						createSfxNote(8, 6, 1, 0, 0.95),
+						createSfxNote(8, 7, 1, 0, 0.95),
+					],
+				},
+			},
+		},
+	],
+};
+
+const bossWarningProject: SongProject = {
+	id: "sfx-boss-warning",
+	title: "Boss Warning Siren",
+	author: "UltraBeep SFX",
+	bpm: 160,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "minor",
+	masterVolume: 0.88,
+	updatedAt: 1700000115000,
+	channels: [
+		{
+			id: "sfx-boss-klaxon",
+			name: "Alarm Klaxon",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[4] ?? "#ef4444",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("gb-square-50").configuration,
+				volume: 0.82,
+				attack: 0.003,
+				decay: 0.12,
+				sustain: 0.6,
+				release: 0.05,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 75, 3, 0, 0.95),
+						createSfxNote(4, 70, 3, 0, 0.92),
+						createSfxNote(8, 75, 3, 0, 0.95),
+						createSfxNote(12, 70, 3, 0, 0.92),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-boss-drone",
+			name: "Menacing Saw",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("vrc6-saw-lead").configuration,
+				volume: 0.68,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 51, 3, 4, 0.85),
+						createSfxNote(4, 46, 3, 4, 0.82),
+						createSfxNote(8, 51, 3, 4, 0.85),
+						createSfxNote(12, 46, 3, 4, 0.82),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-boss-thud",
+			name: "Pulse Warning Thud",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.9,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 0, 1, 0, 1.0),
+						createSfxNote(0, 4, 1, 0, 0.85),
+						createSfxNote(4, 0, 1, 0, 0.85),
+						createSfxNote(8, 0, 1, 0, 1.0),
+						createSfxNote(8, 4, 1, 0, 0.85),
+						createSfxNote(12, 0, 1, 0, 0.85),
+					],
+				},
+			},
+		},
+	],
+};
+
+const menuCursorBlipProject: SongProject = {
+	id: "sfx-menu-cursor",
+	title: "Menu Cursor Blip",
+	author: "UltraBeep SFX",
+	bpm: 200,
+	beatsPerBar: 4,
+	stepsPerBeat: 4,
+	totalBars: 1,
+	loopStartBar: 0,
+	loopEndBar: 0,
+	swing: 0,
+	rootKey: "C",
+	scale: "chromatic",
+	masterVolume: 0.86,
+	updatedAt: 1700000116000,
+	channels: [
+		{
+			id: "sfx-menu-square",
+			name: "Blip Square",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[0] ?? "#00c7ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("gb-square-50").configuration,
+				volume: 0.76,
+				attack: 0.002,
+				decay: 0.06,
+				sustain: 0.3,
+				release: 0.03,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 72, 1, 0, 0.92),
+						createSfxNote(1, 79, 2, 0, 0.98, { fadeMode: "fadeOut" }),
+					],
+				},
+			},
+		},
+		{
+			id: "sfx-menu-pulse",
+			name: "Tick Harmonic",
+			type: "pitch",
+			color: CHANNEL_COLOR_PALETTE[1] ?? "#ffd93d",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("nes-pulse-12").configuration,
+				volume: 0.58,
+				attack: 0.002,
+				decay: 0.05,
+				sustain: 0.2,
+				release: 0.03,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [createSfxNote(1, 84, 2, 0, 0.9, { fadeMode: "fadeOut" })],
+				},
+			},
+		},
+		{
+			id: "sfx-menu-click",
+			name: "Micro Click",
+			type: "drum",
+			color: CHANNEL_COLOR_PALETTE[3] ?? "#b366ff",
+			muted: false,
+			solo: false,
+			instrument: {
+				...getPresetConfigurationById("retro-8bit-kit").configuration,
+				volume: 0.72,
+			},
+			barSequence: [1],
+			patterns: {
+				"1": {
+					index: 1,
+					notes: [
+						createSfxNote(0, 2, 1, 0, 0.8),
+						createSfxNote(1, 7, 1, 0, 0.92),
+					],
+				},
+			},
+		},
+	],
+};
+
 export const SFX_PRESETS: Array<SfxPresetDefinition> = [
 	{
 		id: "sfx-ray-gun",
@@ -936,6 +1775,70 @@ export const SFX_PRESETS: Array<SfxPresetDefinition> = [
 		badge: "JUMP",
 		description: "Classic 8-bit upward pitch-slide spring jump.",
 		project: retroJumpProject,
+	},
+	{
+		id: "sfx-explosion",
+		title: "8-Bit Explosion",
+		category: "combat",
+		badge: "BOOM",
+		description: "Thunderous 8-bit noise crash with deep descending sub pitch dive.",
+		project: explosionProject,
+	},
+	{
+		id: "sfx-extra-life",
+		title: "1-Up Extra Life",
+		category: "feedback",
+		badge: "1-UP",
+		description: "Iconic ascending octave multi-tone extra life victory chime.",
+		project: extraLifeProject,
+	},
+	{
+		id: "sfx-secret-unlocked",
+		title: "Secret Unlocked",
+		category: "jingle",
+		badge: "SECRET",
+		description: "Mysterious chime arpeggio signaling hidden doors and puzzles solved.",
+		project: secretUnlockedProject,
+	},
+	{
+		id: "sfx-shield-deflect",
+		title: "Shield Parry / Deflect",
+		category: "combat",
+		badge: "PARRY",
+		description: "Sharp metallic high-speed deflection clink with sudden cutoff.",
+		project: shieldDeflectProject,
+	},
+	{
+		id: "sfx-warp-teleport",
+		title: "Warp Gate Teleport",
+		category: "feedback",
+		badge: "WARP",
+		description: "Sci-fi frequency warp with rapid oscillating pitch sweep.",
+		project: warpTeleportProject,
+	},
+	{
+		id: "sfx-stage-clear",
+		title: "Stage Clear Fanfare",
+		category: "jingle",
+		badge: "CLEAR",
+		description: "Brisk triumphant 2-bar retro fanfare celebrating level completion.",
+		project: stageClearFanfareProject,
+	},
+	{
+		id: "sfx-boss-warning",
+		title: "Boss Warning Siren",
+		category: "combat",
+		badge: "ALERT",
+		description: "Urgent two-tone alarm klaxon with menacing sub pulse.",
+		project: bossWarningProject,
+	},
+	{
+		id: "sfx-menu-cursor",
+		title: "Menu Cursor Blip",
+		category: "feedback",
+		badge: "SELECT",
+		description: "Crisp instant two-step retro UI selection blip.",
+		project: menuCursorBlipProject,
 	},
 ];
 
@@ -1039,6 +1942,8 @@ const SFX_ARCHETYPE_POOL: Array<Exclude<SfxGeneratorArchetype, "random">> = [
 	"attack",
 	"jump",
 	"coin",
+	"boom",
+	"blip",
 ];
 
 const pickRandomSfxArchetype = (): Exclude<SfxGeneratorArchetype, "random"> => {
@@ -1085,6 +1990,20 @@ export const generateProceduralSfxNotes = (
 			}
 			case "coin": {
 				return [createSfxNote(0, 7, 1, 0, 0.92)];
+			}
+			case "boom": {
+				return [
+					createSfxNote(0, 0, 1, 0, 1.0),
+					createSfxNote(0, 1, 1, 0, 0.95),
+					createSfxNote(Math.min(stepsPerBar - 1, 1), 4, 1, 0, 0.9),
+					createSfxNote(Math.min(stepsPerBar - 1, 2), 4, 1, 0, 0.8),
+				];
+			}
+			case "blip": {
+				return [
+					createSfxNote(0, 2, 1, 0, 0.75),
+					createSfxNote(Math.min(stepsPerBar - 1, 1), 7, 1, 0, 0.95),
+				];
 			}
 		}
 	}
@@ -1176,6 +2095,39 @@ export const generateProceduralSfxNotes = (
 					stepTwo,
 					Math.min(84, rootPitch + 5),
 					clampDuration(stepTwo, 5),
+					0,
+					0.98,
+					{ fadeMode: "fadeOut" }
+				),
+			];
+		}
+		case "boom": {
+			const startPitch = 58 + Math.floor(Math.random() * 6);
+			const stepTwo = clampStep(3);
+			return [
+				createSfxNote(0, startPitch, clampDuration(0, 4), -24, 0.98, {
+					bendStyle: "continuous",
+					fadeMode: "fadeOut",
+				}),
+				createSfxNote(
+					stepTwo,
+					startPitch - 14,
+					clampDuration(stepTwo, 5),
+					-16,
+					0.9,
+					{ bendStyle: "continuous", fadeMode: "fadeOut" }
+				),
+			];
+		}
+		case "blip": {
+			const rootPitch = 69 + Math.floor(Math.random() * 5);
+			const stepTwo = clampStep(1);
+			return [
+				createSfxNote(0, rootPitch, clampDuration(0, 1), 0, 0.92),
+				createSfxNote(
+					stepTwo,
+					Math.min(84, rootPitch + 7),
+					clampDuration(stepTwo, 2),
 					0,
 					0.98,
 					{ fadeMode: "fadeOut" }

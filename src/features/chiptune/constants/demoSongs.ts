@@ -1,8 +1,12 @@
 import type { SongProject } from "../types/music";
 import {
 	cozyPixelTownSong,
+	cyberChaseSong,
+	hauntedCryptSong,
 	neonHouse125Song,
+	overworldQuestSong,
 	starlightBossSong,
+	sunkenRuinsSong,
 } from "./demoTracksExtra";
 import { getPresetConfigurationById } from "./instrumentPresets";
 import {
@@ -209,6 +213,10 @@ export const DEMO_SONGS: Array<SongProject> = [
 	neonDungeonSong,
 	starlightBossSong,
 	cozyPixelTownSong,
+	overworldQuestSong,
+	cyberChaseSong,
+	sunkenRuinsSong,
+	hauntedCryptSong,
 ];
 
 export {

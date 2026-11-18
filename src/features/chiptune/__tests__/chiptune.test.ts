@@ -101,9 +101,31 @@ describe("useChiptuneStore", () => {
 
 	it("loads built-in demo songs", () => {
 		useChiptuneStore.getState().loadDemoSong("demo-starlight-boss");
-		const state = useChiptuneStore.getState();
+		let state = useChiptuneStore.getState();
 		expect(state.song.title).toBe("Starlight Boss Rush");
 		expect(state.song.bpm).toBe(158);
+
+		useChiptuneStore.getState().loadDemoSong("demo-overworld-quest");
+		state = useChiptuneStore.getState();
+		expect(state.song.title).toBe("Overworld Quest 1985");
+		expect(state.song.bpm).toBe(148);
+		expect(state.song.rootKey).toBe("G");
+		expect(state.song.scale).toBe("major");
+
+		useChiptuneStore.getState().loadDemoSong("demo-cyber-chase");
+		state = useChiptuneStore.getState();
+		expect(state.song.title).toBe("Cyber Chase 2088");
+		expect(state.song.bpm).toBe(164);
+
+		useChiptuneStore.getState().loadDemoSong("demo-sunken-ruins");
+		state = useChiptuneStore.getState();
+		expect(state.song.title).toBe("Sunken Coral Ruins");
+		expect(state.song.bpm).toBe(108);
+
+		useChiptuneStore.getState().loadDemoSong("demo-haunted-crypt");
+		state = useChiptuneStore.getState();
+		expect(state.song.title).toBe("Haunted Pixel Crypt");
+		expect(state.song.bpm).toBe(132);
 	});
 
 	it("loads Neon Club House 125 as a ~1-minute 125 BPM 32-bar house loop", () => {
@@ -721,6 +743,14 @@ describe("SFX Creator Mode", () => {
 			"sfx-coin-pickup",
 			"sfx-power-up",
 			"sfx-jump-boost",
+			"sfx-explosion",
+			"sfx-extra-life",
+			"sfx-secret-unlocked",
+			"sfx-shield-deflect",
+			"sfx-warp-teleport",
+			"sfx-stage-clear",
+			"sfx-boss-warning",
+			"sfx-menu-cursor",
 		];
 		expect(SFX_PRESETS.map((preset) => preset.id)).toEqual(expectedIds);
 
@@ -770,5 +800,298 @@ describe("SFX Creator Mode", () => {
 		expect(
 			useChiptuneStore.getState().song.channels[0]?.instrument.presetId
 		).toBe("vrc6-saw-lead");
+
+		store.generateSfxPattern("boom");
+		pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect((pattern?.notes.length ?? 0) > 0).toBe(true);
+
+		store.generateSfxPattern("blip");
+		pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect((pattern?.notes.length ?? 0) > 0).toBe(true);
+	});
+});
+
+describe("Undo and Redo System", () => {
+	beforeEach(() => {
+		useChiptuneStore.getState().resetEverything();
+	});
+
+	it("tracks note additions and allows undoing and redoing them", () => {
+		const store = useChiptuneStore.getState();
+		store.clearCurrentPattern();
+		useChiptuneStore.setState({
+			past: [],
+			future: [],
+			canUndo: false,
+			canRedo: false,
+		});
+		expect(store.canUndo).toBe(false);
+		expect(store.canRedo).toBe(false);
+
+		// Add note
+		store.addOrReplaceNote({
+			step: 2,
+			pitch: 60,
+			duration: 2,
+			velocity: 0.9,
+			pitchBend: 0,
+		});
+
+		expect(useChiptuneStore.getState().canUndo).toBe(true);
+		expect(useChiptuneStore.getState().canRedo).toBe(false);
+
+		let pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect(pattern?.notes).toHaveLength(1);
+
+		// Undo note addition
+		useChiptuneStore.getState().undo();
+		expect(useChiptuneStore.getState().canUndo).toBe(false);
+		expect(useChiptuneStore.getState().canRedo).toBe(true);
+
+		pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect(pattern?.notes ?? []).toHaveLength(0);
+
+		// Redo note addition
+		useChiptuneStore.getState().redo();
+		expect(useChiptuneStore.getState().canUndo).toBe(true);
+		expect(useChiptuneStore.getState().canRedo).toBe(false);
+
+		pattern = getActivePatternForChannel(
+			useChiptuneStore.getState().song.channels[0],
+			0
+		);
+		expect(pattern?.notes).toHaveLength(1);
+		expect(pattern?.notes[0]?.pitch).toBe(60);
+	});
+
+	it("restores channel and bar selection when undoing", () => {
+		const store = useChiptuneStore.getState();
+		store.setSelectedChannelIndex(1);
+		store.setSelectedBarIndex(2);
+
+		// Edit note on channel 1, bar 2
+		store.addOrReplaceNote({
+			step: 0,
+			pitch: 64,
+			duration: 4,
+			velocity: 0.8,
+			pitchBend: 0,
+		});
+
+		// Switch focus somewhere else
+		useChiptuneStore.getState().setSelectedChannelIndex(0);
+		useChiptuneStore.getState().setSelectedBarIndex(0);
+
+		// Undo should restore focus back to channel 1, bar 2
+		useChiptuneStore.getState().undo();
+		expect(useChiptuneStore.getState().selectedChannelIndex).toBe(1);
+		expect(useChiptuneStore.getState().selectedBarIndex).toBe(2);
+	});
+
+	it("undoes and redoes pattern slot changes", () => {
+		const store = useChiptuneStore.getState();
+		expect(store.song.channels[0]?.barSequence[2]).toBe(0);
+		store.setBarPatternIndex(0, 2, 3);
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(3);
+
+		useChiptuneStore.getState().undo();
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(0);
+
+		useChiptuneStore.getState().redo();
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(3);
+	});
+});
+
+describe("Multiple Bar Selection and Arrangement", () => {
+	beforeEach(() => {
+		useChiptuneStore.getState().resetEverything();
+	});
+
+	it("allows selecting multiple bars across instruments", () => {
+		const store = useChiptuneStore.getState();
+		expect(store.barSelection).toBeNull();
+
+		store.setBarSelection({
+			startBar: 1,
+			endBar: 3,
+			startChannel: 0,
+			endChannel: 2,
+		});
+
+		const selection = useChiptuneStore.getState().barSelection;
+		expect(selection).not.toBeNull();
+		expect(selection?.startBar).toBe(1);
+		expect(selection?.endBar).toBe(3);
+		expect(selection?.startChannel).toBe(0);
+		expect(selection?.endChannel).toBe(2);
+
+		store.clearBarSelection();
+		expect(useChiptuneStore.getState().barSelection).toBeNull();
+
+		store.selectAllBars();
+		const allSelection = useChiptuneStore.getState().barSelection;
+		expect(allSelection?.startBar).toBe(0);
+		expect(allSelection?.endBar).toBe(useChiptuneStore.getState().song.totalBars - 1);
+		expect(allSelection?.startChannel).toBe(0);
+		expect(allSelection?.endChannel).toBe(
+			useChiptuneStore.getState().song.channels.length - 1
+		);
+	});
+
+	it("copies and pastes multiple bars across instruments to another bar", () => {
+		const store = useChiptuneStore.getState();
+		// Set up pattern 1 on channel 0, bar 0 and bar 1
+		store.setBarPatternIndex(0, 0, 1);
+		store.setBarPatternIndex(0, 1, 2);
+		// Set up pattern 1 on channel 1, bar 0 and bar 1
+		store.setBarPatternIndex(1, 0, 1);
+		store.setBarPatternIndex(1, 1, 1);
+
+		// Select bars 0..1 across channels 0..1
+		store.setBarSelection({
+			startBar: 0,
+			endBar: 1,
+			startChannel: 0,
+			endChannel: 1,
+		});
+
+		store.copySelectedBars();
+		const clipboard = useChiptuneStore.getState().copiedBarsClipboard;
+		expect(clipboard).not.toBeNull();
+		expect(clipboard?.barCount).toBe(2);
+		expect(clipboard?.channelCount).toBe(2);
+
+		// Paste at bar 4
+		store.pasteBarsAt(4);
+		const song = useChiptuneStore.getState().song;
+		expect(song.channels[0]?.barSequence[4]).toBe(1);
+		expect(song.channels[0]?.barSequence[5]).toBe(2);
+		expect(song.channels[1]?.barSequence[4]).toBe(1);
+		expect(song.channels[1]?.barSequence[5]).toBe(1);
+
+		// Selection should now highlight destination bars 4..5
+		expect(useChiptuneStore.getState().barSelection?.startBar).toBe(4);
+		expect(useChiptuneStore.getState().barSelection?.endBar).toBe(5);
+	});
+
+	it("arranges (moves) multiple bars to a specific bar and clears source", () => {
+		const store = useChiptuneStore.getState();
+		store.setBarPatternIndex(0, 0, 1);
+		store.setBarPatternIndex(0, 1, 2);
+		store.setBarPatternIndex(1, 0, 1);
+		store.setBarPatternIndex(1, 1, 2);
+
+		store.setBarSelection({
+			startBar: 0,
+			endBar: 1,
+			startChannel: 0,
+			endChannel: 1,
+		});
+
+		// Move selected bars 0..1 to bar 6
+		store.moveSelectedBarsTo(6);
+
+		let song = useChiptuneStore.getState().song;
+		// Original source bars 0..1 should be cleared (0)
+		expect(song.channels[0]?.barSequence[0]).toBe(0);
+		expect(song.channels[0]?.barSequence[1]).toBe(0);
+		expect(song.channels[1]?.barSequence[0]).toBe(0);
+		expect(song.channels[1]?.barSequence[1]).toBe(0);
+
+		// Destination bars 6..7 should have the arranged patterns
+		expect(song.channels[0]?.barSequence[6]).toBe(1);
+		expect(song.channels[0]?.barSequence[7]).toBe(2);
+		expect(song.channels[1]?.barSequence[6]).toBe(1);
+		expect(song.channels[1]?.barSequence[7]).toBe(2);
+
+		// Undo the move
+		useChiptuneStore.getState().undo();
+		song = useChiptuneStore.getState().song;
+		expect(song.channels[0]?.barSequence[0]).toBe(1);
+		expect(song.channels[0]?.barSequence[1]).toBe(2);
+		expect(song.channels[0]?.barSequence[6]).toBe(0);
+	});
+
+	it("duplicates multiple bars to another bar preserving source", () => {
+		const store = useChiptuneStore.getState();
+		store.setBarPatternIndex(0, 0, 1);
+		store.setBarPatternIndex(0, 1, 2);
+
+		store.setBarSelection({
+			startBar: 0,
+			endBar: 1,
+			startChannel: 0,
+			endChannel: 0,
+		});
+
+		store.duplicateSelectedBarsTo(2);
+
+		const song = useChiptuneStore.getState().song;
+		// Source preserved
+		expect(song.channels[0]?.barSequence[0]).toBe(1);
+		expect(song.channels[0]?.barSequence[1]).toBe(2);
+		// Duplicated at bar 2..3
+		expect(song.channels[0]?.barSequence[2]).toBe(1);
+		expect(song.channels[0]?.barSequence[3]).toBe(2);
+	});
+
+	it("shifts selected bars left and right", () => {
+		const store = useChiptuneStore.getState();
+		store.setBarPatternIndex(0, 2, 1);
+		store.setBarPatternIndex(0, 3, 2);
+
+		store.setBarSelection({
+			startBar: 2,
+			endBar: 3,
+			startChannel: 0,
+			endChannel: 0,
+		});
+
+		// Shift left by 1 bar
+		store.shiftSelectedBars(-1);
+		let song = useChiptuneStore.getState().song;
+		expect(song.channels[0]?.barSequence[1]).toBe(1);
+		expect(song.channels[0]?.barSequence[2]).toBe(2);
+		expect(song.channels[0]?.barSequence[3]).toBe(0);
+
+		// Shift right by 2 bars
+		store.shiftSelectedBars(2);
+		song = useChiptuneStore.getState().song;
+		expect(song.channels[0]?.barSequence[3]).toBe(1);
+		expect(song.channels[0]?.barSequence[4]).toBe(2);
+	});
+
+	it("clears content of selected bars", () => {
+		const store = useChiptuneStore.getState();
+		store.setBarPatternIndex(0, 0, 1);
+		store.setBarPatternIndex(0, 1, 2);
+		store.setBarPatternIndex(1, 0, 3);
+		store.setBarPatternIndex(1, 1, 4);
+
+		store.setBarSelection({
+			startBar: 0,
+			endBar: 1,
+			startChannel: 0,
+			endChannel: 1,
+		});
+
+		store.clearSelectedBarsContent();
+		const song = useChiptuneStore.getState().song;
+		expect(song.channels[0]?.barSequence[0]).toBe(0);
+		expect(song.channels[0]?.barSequence[1]).toBe(0);
+		expect(song.channels[1]?.barSequence[0]).toBe(0);
+		expect(song.channels[1]?.barSequence[1]).toBe(0);
 	});
 });

@@ -1,6 +1,9 @@
 import type {
+	BarMatrixSelection,
 	ChannelType,
+	CopiedBarsClipboard,
 	EditorTool,
+	HistorySnapshot,
 	InstrumentConfiguration,
 	LoopMode,
 	MobileWorkspaceTab,
@@ -43,6 +46,30 @@ export interface ChiptuneStoreState {
 	loopMode: LoopMode;
 	playbackBar: number;
 	playbackStep: number;
+	past: Array<HistorySnapshot>;
+	future: Array<HistorySnapshot>;
+	canUndo: boolean;
+	canRedo: boolean;
+	barSelection: BarMatrixSelection | null;
+	copiedBarsClipboard: CopiedBarsClipboard | null;
+
+	undo: () => void;
+	redo: () => void;
+	setBarSelection: (selection: BarMatrixSelection | null) => void;
+	clearBarSelection: () => void;
+	selectAllBars: () => void;
+	copySelectedBars: () => void;
+	pasteBarsAt: (targetBarIndex: number, targetChannelIndex?: number) => void;
+	moveSelectedBarsTo: (
+		targetBarIndex: number,
+		targetChannelIndex?: number
+	) => void;
+	duplicateSelectedBarsTo: (
+		targetBarIndex: number,
+		targetChannelIndex?: number
+	) => void;
+	shiftSelectedBars: (deltaBars: number) => void;
+	clearSelectedBarsContent: () => void;
 
 	setActiveWorkspaceTab: (tab: MobileWorkspaceTab) => void;
 	setActiveTool: (tool: EditorTool) => void;

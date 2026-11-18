@@ -17,6 +17,9 @@ const QUICK_SFX_GENERATORS: Array<{
 	{ label: "+ Laser", archetype: "laser" },
 	{ label: "+ Hurt", archetype: "hurt" },
 	{ label: "+ Jump", archetype: "jump" },
+	{ label: "+ Coin", archetype: "coin" },
+	{ label: "+ Boom", archetype: "boom" },
+	{ label: "+ Blip", archetype: "blip" },
 ];
 
 const CATEGORY_BADGE_CLASSES: Record<SfxCategory, string> = {

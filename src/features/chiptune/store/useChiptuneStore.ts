@@ -8,24 +8,34 @@ import {
 	getSfxPresetById,
 } from "../constants/sfxPresets";
 import type {
+	BarMatrixSelection,
+	CopiedBarsClipboard,
+	HistorySnapshot,
 	MusicalKey,
 	ScaleType,
 	SfxGeneratorArchetype,
 	SongProject,
 } from "../types/music";
 import {
+	clearBarsInSong,
 	clonePatternToBarInSong,
 	copyBarPatternSlotInSong,
+	copyBarsFromSong,
 	createNewChannel,
 	cycleNoteFadeInSong,
 	cycleNotePitchBendInSong,
+	duplicateBarsInSong,
 	generateRiffInChannelPattern,
 	getStepsPerBar,
+	moveBarsInSong,
 	moveNoteInSong,
 	moveNotesBatchInSong,
+	normalizeBarSelection,
+	pasteBarsIntoSong,
 	reorderChannelsInSong,
 	setBarPatternIndexInSong,
 	setNotePitchBendInSong,
+	shiftBarsInSong,
 	transposeChannelPattern,
 	updateChannelPatternNotes,
 } from "./songHelpers";
@@ -39,6 +49,53 @@ const initialSong = cloneSongProject(
 	DEMO_SONGS[0] ?? createBlankSongProject("Neon Demo")
 );
 
+const MAX_HISTORY_STEPS = 50;
+let lastHistoryGroupKey: string | null = null;
+let lastHistoryTime = 0;
+const GROUP_COALESCE_MS = 500;
+
+const createHistoryRecord = (
+	state: ChiptuneStoreState,
+	groupKey?: string
+): {
+	past: Array<HistorySnapshot>;
+	future: Array<HistorySnapshot>;
+	canUndo: boolean;
+	canRedo: boolean;
+} => {
+	const now = Date.now();
+	if (
+		groupKey &&
+		lastHistoryGroupKey === groupKey &&
+		now - lastHistoryTime < GROUP_COALESCE_MS
+	) {
+		lastHistoryTime = now;
+		return {
+			past: state.past,
+			future: state.future,
+			canUndo: state.past.length > 0,
+			canRedo: state.future.length > 0,
+		};
+	}
+	lastHistoryGroupKey = groupKey ?? null;
+	lastHistoryTime = now;
+
+	const snapshot: HistorySnapshot = {
+		song: cloneSongProject(state.song),
+		selectedChannelIndex: state.selectedChannelIndex,
+		selectedBarIndex: state.selectedBarIndex,
+		barSelection: state.barSelection ? { ...state.barSelection } : null,
+	};
+
+	const nextPast = [...state.past.slice(-(MAX_HISTORY_STEPS - 1)), snapshot];
+	return {
+		past: nextPast,
+		future: [],
+		canUndo: true,
+		canRedo: false,
+	};
+};
+
 const SFX_ARCHETYPE_PRESET_MAP: Record<
 	Exclude<SfxGeneratorArchetype, "random">,
 	string
@@ -48,6 +105,8 @@ const SFX_ARCHETYPE_PRESET_MAP: Record<
 	attack: "genesis-fm-bell",
 	jump: "gb-square-50",
 	coin: "nes-pulse-25",
+	boom: "vrc6-saw-lead",
+	blip: "gb-square-50",
 };
 
 export const useChiptuneStore = create<ChiptuneStoreState>()(
@@ -71,6 +130,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			loopMode: "song",
 			playbackBar: 0,
 			playbackStep: 0,
+			past: [],
+			future: [],
+			canUndo: false,
+			canRedo: false,
+			barSelection: null,
+			copiedBarsClipboard: null,
 
 			setActiveWorkspaceTab: (tab): void => {
 				set({ activeWorkspaceTab: tab });
@@ -147,22 +212,296 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
-			updateSongMetadata: (updates): void => {
+			undo: (): void => {
+				set((state) => {
+					if (state.past.length === 0) {
+						return state;
+					}
+					const past = [...state.past];
+					const previousSnapshot = past.pop();
+					if (!previousSnapshot) {
+						return state;
+					}
+					const currentSnapshot: HistorySnapshot = {
+						song: cloneSongProject(state.song),
+						selectedChannelIndex: state.selectedChannelIndex,
+						selectedBarIndex: state.selectedBarIndex,
+						barSelection: state.barSelection
+							? { ...state.barSelection }
+							: null,
+					};
+					const future = [
+						...state.future.slice(-(MAX_HISTORY_STEPS - 1)),
+						currentSnapshot,
+					];
+
+					return {
+						song: cloneSongProject(previousSnapshot.song),
+						selectedChannelIndex: Math.min(
+							previousSnapshot.selectedChannelIndex ??
+								state.selectedChannelIndex,
+							previousSnapshot.song.channels.length - 1
+						),
+						selectedBarIndex: Math.min(
+							previousSnapshot.selectedBarIndex ?? state.selectedBarIndex,
+							previousSnapshot.song.totalBars - 1
+						),
+						barSelection: previousSnapshot.barSelection
+							? { ...previousSnapshot.barSelection }
+							: null,
+						past,
+						future,
+						canUndo: past.length > 0,
+						canRedo: true,
+					};
+				});
+			},
+
+			redo: (): void => {
+				set((state) => {
+					if (state.future.length === 0) {
+						return state;
+					}
+					const future = [...state.future];
+					const nextSnapshot = future.pop();
+					if (!nextSnapshot) {
+						return state;
+					}
+					const currentSnapshot: HistorySnapshot = {
+						song: cloneSongProject(state.song),
+						selectedChannelIndex: state.selectedChannelIndex,
+						selectedBarIndex: state.selectedBarIndex,
+						barSelection: state.barSelection
+							? { ...state.barSelection }
+							: null,
+					};
+					const past = [
+						...state.past.slice(-(MAX_HISTORY_STEPS - 1)),
+						currentSnapshot,
+					];
+
+					return {
+						song: cloneSongProject(nextSnapshot.song),
+						selectedChannelIndex: Math.min(
+							nextSnapshot.selectedChannelIndex ??
+								state.selectedChannelIndex,
+							nextSnapshot.song.channels.length - 1
+						),
+						selectedBarIndex: Math.min(
+							nextSnapshot.selectedBarIndex ?? state.selectedBarIndex,
+							nextSnapshot.song.totalBars - 1
+						),
+						barSelection: nextSnapshot.barSelection
+							? { ...nextSnapshot.barSelection }
+							: null,
+						past,
+						future,
+						canUndo: true,
+						canRedo: future.length > 0,
+					};
+				});
+			},
+
+			setBarSelection: (selection): void => {
+				set((state) => {
+					if (!selection) {
+						return { barSelection: null };
+					}
+					const normalized = normalizeBarSelection(
+						selection,
+						state.song.totalBars,
+						state.song.channels.length
+					);
+					return { barSelection: normalized };
+				});
+			},
+
+			clearBarSelection: (): void => {
+				set({ barSelection: null });
+			},
+
+			selectAllBars: (): void => {
 				set((state) => ({
-					song: {
-						...state.song,
-						...updates,
-						bpm:
-							updates.bpm !== undefined
-								? Math.max(50, Math.min(240, updates.bpm))
-								: state.song.bpm,
-						updatedAt: Date.now(),
+					barSelection: {
+						startBar: 0,
+						endBar: state.song.totalBars - 1,
+						startChannel: 0,
+						endChannel: state.song.channels.length - 1,
 					},
 				}));
 			},
 
+			copySelectedBars: (): void => {
+				set((state) => {
+					const sel = state.barSelection ?? {
+						startBar: state.selectedBarIndex,
+						endBar: state.selectedBarIndex,
+						startChannel: state.selectedChannelIndex,
+						endChannel: state.selectedChannelIndex,
+					};
+					const clipboard = copyBarsFromSong(state.song, sel);
+					return {
+						copiedBarsClipboard: clipboard,
+						barSelection: normalizeBarSelection(
+							sel,
+							state.song.totalBars,
+							state.song.channels.length
+						),
+					};
+				});
+			},
+
+			pasteBarsAt: (targetBarIndex, targetChannelIndex): void => {
+				set((state) => {
+					if (!state.copiedBarsClipboard) {
+						return state;
+					}
+					const history = createHistoryRecord(state);
+					const targetChan =
+						targetChannelIndex ??
+						state.barSelection?.startChannel ??
+						state.selectedChannelIndex;
+					const { song: nextSong, pastedSelection } = pasteBarsIntoSong(
+						state.song,
+						state.copiedBarsClipboard,
+						targetBarIndex,
+						targetChan
+					);
+					return {
+						...history,
+						song: nextSong,
+						barSelection: pastedSelection,
+						selectedBarIndex: Math.min(
+							nextSong.totalBars - 1,
+							targetBarIndex
+						),
+						selectedChannelIndex: Math.min(
+							nextSong.channels.length - 1,
+							targetChan
+						),
+					};
+				});
+			},
+
+			moveSelectedBarsTo: (targetBarIndex, targetChannelIndex): void => {
+				set((state) => {
+					const sel = state.barSelection ?? {
+						startBar: state.selectedBarIndex,
+						endBar: state.selectedBarIndex,
+						startChannel: state.selectedChannelIndex,
+						endChannel: state.selectedChannelIndex,
+					};
+					const history = createHistoryRecord(state);
+					const { song: nextSong, nextSelection } = moveBarsInSong(
+						state.song,
+						sel,
+						targetBarIndex,
+						targetChannelIndex
+					);
+					return {
+						...history,
+						song: nextSong,
+						barSelection: nextSelection,
+						selectedBarIndex: Math.min(
+							nextSong.totalBars - 1,
+							targetBarIndex
+						),
+					};
+				});
+			},
+
+			duplicateSelectedBarsTo: (
+				targetBarIndex,
+				targetChannelIndex
+			): void => {
+				set((state) => {
+					const sel = state.barSelection ?? {
+						startBar: state.selectedBarIndex,
+						endBar: state.selectedBarIndex,
+						startChannel: state.selectedChannelIndex,
+						endChannel: state.selectedChannelIndex,
+					};
+					const history = createHistoryRecord(state);
+					const { song: nextSong, nextSelection } = duplicateBarsInSong(
+						state.song,
+						sel,
+						targetBarIndex,
+						targetChannelIndex
+					);
+					return {
+						...history,
+						song: nextSong,
+						barSelection: nextSelection,
+						selectedBarIndex: Math.min(
+							nextSong.totalBars - 1,
+							targetBarIndex
+						),
+					};
+				});
+			},
+
+			shiftSelectedBars: (deltaBars): void => {
+				set((state) => {
+					if (!state.barSelection) {
+						return state;
+					}
+					const history = createHistoryRecord(state);
+					const { song: nextSong, nextSelection } = shiftBarsInSong(
+						state.song,
+						state.barSelection,
+						deltaBars
+					);
+					return {
+						...history,
+						song: nextSong,
+						barSelection: nextSelection,
+						selectedBarIndex: nextSelection.startBar,
+					};
+				});
+			},
+
+			clearSelectedBarsContent: (): void => {
+				set((state) => {
+					if (!state.barSelection) {
+						return state;
+					}
+					const history = createHistoryRecord(state);
+					const nextSong = clearBarsInSong(state.song, state.barSelection);
+					return {
+						...history,
+						song: nextSong,
+					};
+				});
+			},
+
+			updateSongMetadata: (updates): void => {
+				set((state) => {
+					const history = createHistoryRecord(
+						state,
+						updates.bpm !== undefined
+							? "bpm"
+							: updates.masterVolume !== undefined
+								? "volume"
+								: undefined
+					);
+					return {
+						...history,
+						song: {
+							...state.song,
+							...updates,
+							bpm:
+								updates.bpm !== undefined
+									? Math.max(50, Math.min(240, updates.bpm))
+									: state.song.bpm,
+							updatedAt: Date.now(),
+						},
+					};
+				});
+			},
+
 			setTotalBars: (totalBars): void => {
 				set((state) => {
+					const history = createHistoryRecord(state);
 					const clampedBars = Math.max(1, Math.min(32, totalBars));
 					const nextLoopEnd =
 						state.studioMode === "sfx"
@@ -183,6 +522,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						),
 					}));
 					return {
+						...history,
 						song: {
 							...state.song,
 							totalBars: clampedBars,
@@ -198,6 +538,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 
 			setLoopRange: (loopStartBar, loopEndBar): void => {
 				set((state) => {
+					const history = createHistoryRecord(state, "loop-range");
 					const maxBar = Math.max(0, state.song.totalBars - 1);
 					const clampedStart = Math.max(0, Math.min(maxBar, loopStartBar));
 					const clampedEnd = Math.max(
@@ -205,6 +546,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						Math.min(maxBar, loopEndBar)
 					);
 					return {
+						...history,
 						song: {
 							...state.song,
 							loopStartBar: clampedStart,
@@ -220,12 +562,14 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (state.song.channels.length >= 8) {
 						return state;
 					}
+					const history = createHistoryRecord(state);
 					const created = createNewChannel(
 						channelType,
 						state.song.channels.length,
 						state.song.totalBars
 					);
 					return {
+						...history,
 						song: {
 							...state.song,
 							channels: [...state.song.channels, created],
@@ -241,10 +585,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (state.song.channels.length <= 1) {
 						return state;
 					}
+					const history = createHistoryRecord(state);
 					const filtered = state.song.channels.filter(
 						(_, index) => index !== channelIndex
 					);
 					return {
+						...history,
 						song: { ...state.song, channels: filtered, updatedAt: Date.now() },
 						selectedChannelIndex: Math.min(
 							state.selectedChannelIndex,
@@ -264,6 +610,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (updatedSong === state.song) {
 						return state;
 					}
+					const history = createHistoryRecord(state);
 					let nextSelectedChannelIndex = state.selectedChannelIndex;
 					if (state.selectedChannelIndex === fromIndex) {
 						nextSelectedChannelIndex = toIndex;
@@ -279,6 +626,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						nextSelectedChannelIndex += 1;
 					}
 					return {
+						...history,
 						song: updatedSong,
 						selectedChannelIndex: nextSelectedChannelIndex,
 					};
@@ -312,20 +660,28 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 
 			setBarPatternIndex: (channelIndex, barIndex, patternIndex): void => {
-				set((state) => ({
-					song: setBarPatternIndexInSong(
-						state.song,
-						channelIndex,
-						barIndex,
-						patternIndex
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: setBarPatternIndexInSong(
+							state.song,
+							channelIndex,
+							barIndex,
+							patternIndex
+						),
+					};
+				});
 			},
 
 			clonePatternToBar: (channelIndex, barIndex): void => {
-				set((state) => ({
-					song: clonePatternToBarInSong(state.song, channelIndex, barIndex),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: clonePatternToBarInSong(state.song, channelIndex, barIndex),
+					};
+				});
 			},
 
 			copyBarPatternSlot: (
@@ -334,25 +690,31 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				targetChannelIndex,
 				targetBarIndex
 			): void => {
-				set((state) => ({
-					song: copyBarPatternSlotInSong(
-						state.song,
-						sourceChannelIndex,
-						sourceBarIndex,
-						targetChannelIndex,
-						targetBarIndex
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: copyBarPatternSlotInSong(
+							state.song,
+							sourceChannelIndex,
+							sourceBarIndex,
+							targetChannelIndex,
+							targetBarIndex
+						),
+					};
+				});
 			},
 
 			addOrReplaceNote: (noteInput): void => {
 				set((state) => {
+					const history = createHistoryRecord(state);
 					const stepsPerBar = getStepsPerBar(state.song);
 					const clampedDuration = Math.max(
 						1,
 						Math.min(stepsPerBar - noteInput.step, noteInput.duration)
 					);
 					return {
+						...history,
 						song: updateChannelPatternNotes(
 							state.song,
 							state.selectedChannelIndex,
@@ -377,28 +739,34 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 
 			removeNoteAt: (step, pitch): void => {
-				set((state) => ({
-					song: updateChannelPatternNotes(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						(notes) =>
-							notes.filter(
-								(note) =>
-									!(
-										note.pitch === pitch &&
-										step >= note.step &&
-										step < note.step + note.duration
-									)
-							)
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: updateChannelPatternNotes(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							(notes) =>
+								notes.filter(
+									(note) =>
+										!(
+											note.pitch === pitch &&
+											step >= note.step &&
+											step < note.step + note.duration
+										)
+								)
+						),
+					};
+				});
 			},
 
 			resizeNoteAt: (step, pitch, duration): void => {
 				set((state) => {
+					const history = createHistoryRecord(state);
 					const stepsPerBar = getStepsPerBar(state.song);
 					return {
+						...history,
 						song: updateChannelPatternNotes(
 							state.song,
 							state.selectedChannelIndex,
@@ -421,122 +789,170 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 
 			moveNoteAt: (fromStep, fromPitch, toStep, toPitch): void => {
-				set((state) => ({
-					song: moveNoteInSong(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						fromStep,
-						fromPitch,
-						toStep,
-						toPitch
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: moveNoteInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							fromStep,
+							fromPitch,
+							toStep,
+							toPitch
+						),
+					};
+				});
 			},
 
 			moveNotesBatch: (updates, deduplicateUnselected = true): void => {
-				set((state) => ({
-					song: moveNotesBatchInSong(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						updates,
-						deduplicateUnselected
-					),
-				}));
+				set((state) => {
+					const history = deduplicateUnselected
+						? createHistoryRecord(state)
+						: {
+								past: state.past,
+								future: state.future,
+								canUndo: state.past.length > 0,
+								canRedo: state.future.length > 0,
+							};
+					return {
+						...history,
+						song: moveNotesBatchInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							updates,
+							deduplicateUnselected
+						),
+					};
+				});
 			},
 
 			cycleNotePitchBend: (step, pitch): void => {
-				set((state) => ({
-					song: cycleNotePitchBendInSong(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						step,
-						pitch
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: cycleNotePitchBendInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							step,
+							pitch
+						),
+					};
+				});
 			},
 
 			setNotePitchBendAt: (step, pitch, pitchBend, bendStyle): void => {
-				set((state) => ({
-					song: setNotePitchBendInSong(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						step,
-						pitch,
-						pitchBend,
-						bendStyle
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state, "note-pitch-bend");
+					return {
+						...history,
+						song: setNotePitchBendInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							step,
+							pitch,
+							pitchBend,
+							bendStyle
+						),
+					};
+				});
 			},
 
 			cycleNoteFadeAt: (step, pitch): void => {
-				set((state) => ({
-					song: cycleNoteFadeInSong(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						step,
-						pitch
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: cycleNoteFadeInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							step,
+							pitch
+						),
+					};
+				});
 			},
 
 			clearCurrentPattern: (): void => {
-				set((state) => ({
-					song: updateChannelPatternNotes(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						() => []
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: updateChannelPatternNotes(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							() => []
+						),
+					};
+				});
 			},
 
 			transposeCurrentPattern: (semitones): void => {
-				set((state) => ({
-					song: transposeChannelPattern(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex,
-						semitones
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: transposeChannelPattern(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							semitones
+						),
+					};
+				});
 			},
 
 			generateRiffForCurrentPattern: (): void => {
-				set((state) => ({
-					song: generateRiffInChannelPattern(
-						state.song,
-						state.selectedChannelIndex,
-						state.selectedBarIndex
-					),
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: generateRiffInChannelPattern(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex
+						),
+					};
+				});
 			},
 
 			updateChannelInstrument: (channelIndex, updates): void => {
-				set((state) => ({
-					song: {
-						...state.song,
-						updatedAt: Date.now(),
-						channels: state.song.channels.map((channel, index) =>
-							index === channelIndex
-								? {
-										...channel,
-										instrument: { ...channel.instrument, ...updates },
-									}
-								: channel
-						),
-					},
-				}));
+				set((state) => {
+					const history = createHistoryRecord(state, "instrument-param");
+					return {
+						...history,
+						song: {
+							...state.song,
+							updatedAt: Date.now(),
+							channels: state.song.channels.map((channel, index) =>
+								index === channelIndex
+									? {
+											...channel,
+											instrument: {
+												...channel.instrument,
+												...updates,
+											},
+										}
+									: channel
+							),
+						},
+					};
+				});
 			},
 
 			applyInstrumentPreset: (channelIndex, presetId): void => {
 				set((state) => {
+					const history = createHistoryRecord(state);
 					const preset = getPresetConfigurationById(presetId);
 					return {
+						...history,
 						song: {
 							...state.song,
 							updatedAt: Date.now(),
@@ -643,6 +1059,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (!activeChannel) {
 						return state;
 					}
+					const history = createHistoryRecord(state);
 					const stepsPerBar = getStepsPerBar(state.song);
 					const generatedNotes = generateProceduralSfxNotes(
 						archetype,
@@ -668,6 +1085,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					}
 
 					return {
+						...history,
 						song: updateChannelPatternNotes(
 							baseSong,
 							state.selectedChannelIndex,
@@ -713,6 +1131,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					playbackBar: 0,
 					playbackStep: 0,
 					isPlaying: false,
+					past: [],
+					future: [],
+					canUndo: false,
+					canRedo: false,
+					barSelection: null,
+					copiedBarsClipboard: null,
 				}));
 			},
 
@@ -724,6 +1148,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					playbackBar: 0,
 					playbackStep: 0,
 					isPlaying: false,
+					past: [],
+					future: [],
+					canUndo: false,
+					canRedo: false,
+					barSelection: null,
+					copiedBarsClipboard: null,
 				});
 			},
 
@@ -757,6 +1187,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						playbackBar: 0,
 						playbackStep: 0,
 						isPlaying: false,
+						past: [],
+						future: [],
+						canUndo: false,
+						canRedo: false,
+						barSelection: null,
+						copiedBarsClipboard: null,
 					};
 				});
 			},
@@ -787,6 +1223,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					loopMode: "song",
 					playbackBar: 0,
 					playbackStep: 0,
+					past: [],
+					future: [],
+					canUndo: false,
+					canRedo: false,
+					barSelection: null,
+					copiedBarsClipboard: null,
 				});
 			},
 		}),
@@ -814,4 +1256,9 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 	)
 );
 
-export type { MusicalKey, ScaleType };
+export type {
+	BarMatrixSelection,
+	CopiedBarsClipboard,
+	MusicalKey,
+	ScaleType,
+};

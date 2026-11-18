@@ -1,6 +1,8 @@
 import {
 	ArrowsPointingOutIcon,
 	ArrowTrendingUpIcon,
+	ArrowUturnLeftIcon,
+	ArrowUturnRightIcon,
 	BackspaceIcon,
 	CursorArrowRaysIcon,
 	PencilIcon,
@@ -9,6 +11,7 @@ import {
 	TrashIcon,
 } from "@heroicons/react/24/outline";
 import type { FunctionComponent } from "../../../common/types";
+import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { Channel, EditorTool } from "../types/music";
 
 const DURATION_OPTIONS: Array<{ label: string; steps: number }> = [
@@ -63,6 +66,11 @@ export const PianoRollHeaderStrip = ({
 	onGenerateRiff,
 	onClearPattern,
 }: PianoRollHeaderStripProps): FunctionComponent => {
+	const canUndo = useChiptuneStore((state) => state.canUndo);
+	const canRedo = useChiptuneStore((state) => state.canRedo);
+	const undo = useChiptuneStore((state) => state.undo);
+	const redo = useChiptuneStore((state) => state.redo);
+
 	return (
 		<div className="studio-chrome-text flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-slate-800 bg-slate-900/90 px-2 py-1">
 			<div className="flex min-w-0 items-center gap-1.5">
@@ -79,6 +87,34 @@ export const PianoRollHeaderStrip = ({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-1.5">
+				{/* Undo / Redo */}
+				<div
+					aria-label="Undo and redo"
+					className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
+					role="group"
+				>
+					<button
+						aria-label="Undo note edit"
+						className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+						disabled={!canUndo}
+						title="Undo (Ctrl+Z / ⌘Z)"
+						type="button"
+						onClick={undo}
+					>
+						<ArrowUturnLeftIcon aria-hidden="true" className="size-3" />
+					</button>
+					<button
+						aria-label="Redo note edit"
+						className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+						disabled={!canRedo}
+						title="Redo (Ctrl+Y / ⌘⇧Z)"
+						type="button"
+						onClick={redo}
+					>
+						<ArrowUturnRightIcon aria-hidden="true" className="size-3" />
+					</button>
+				</div>
+
 				{/* Tool Selector: Select / Draw / Move / Erase / Bend / Fade */}
 				<div
 					aria-label="Note editing tools"

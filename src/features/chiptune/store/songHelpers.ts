@@ -8,8 +8,11 @@ import {
 	MELODIC_MIN_MIDI,
 } from "../constants/scalesAndNotes";
 import type {
+	BarMatrixSelection,
 	Channel,
 	ChannelType,
+	CopiedBarSlot,
+	CopiedBarsClipboard,
 	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
@@ -606,4 +609,296 @@ export const cycleNoteFadeInSong = (
 			return note;
 		})
 	);
+};
+
+export const normalizeBarSelection = (
+	selection: BarMatrixSelection,
+	totalBars: number,
+	channelCount: number
+): BarMatrixSelection => {
+	const minBar = Math.max(0, Math.min(selection.startBar, selection.endBar));
+	const maxBar = Math.min(
+		totalBars - 1,
+		Math.max(selection.startBar, selection.endBar)
+	);
+	const minChan = Math.max(
+		0,
+		Math.min(selection.startChannel, selection.endChannel)
+	);
+	const maxChan = Math.min(
+		channelCount - 1,
+		Math.max(selection.startChannel, selection.endChannel)
+	);
+	return {
+		startBar: minBar,
+		endBar: maxBar,
+		startChannel: minChan,
+		endChannel: maxChan,
+	};
+};
+
+export const copyBarsFromSong = (
+	song: SongProject,
+	rawSelection: BarMatrixSelection
+): CopiedBarsClipboard => {
+	const sel = normalizeBarSelection(
+		rawSelection,
+		song.totalBars,
+		song.channels.length
+	);
+	const slots: Array<CopiedBarSlot> = [];
+	const barCount = sel.endBar - sel.startBar + 1;
+	const channelCount = sel.endChannel - sel.startChannel + 1;
+
+	for (let c = sel.startChannel; c <= sel.endChannel; c++) {
+		const channel = song.channels[c];
+		if (!channel) {
+			continue;
+		}
+		for (let b = sel.startBar; b <= sel.endBar; b++) {
+			const patternNumber = channel.barSequence[b] ?? 0;
+			const pattern =
+				patternNumber > 0 ? channel.patterns[String(patternNumber)] : null;
+			slots.push({
+				channelOffset: c - sel.startChannel,
+				channelType: channel.type,
+				channelName: channel.name,
+				barOffset: b - sel.startBar,
+				patternNumber,
+				patternNotes: pattern
+					? pattern.notes.map((n) => ({ ...n }))
+					: undefined,
+			});
+		}
+	}
+
+	return {
+		barCount,
+		channelCount,
+		slots,
+	};
+};
+
+export const pasteBarsIntoSong = (
+	song: SongProject,
+	clipboard: CopiedBarsClipboard,
+	targetBar: number,
+	targetChannel = 0
+): { song: SongProject; pastedSelection: BarMatrixSelection } => {
+	if (!clipboard || clipboard.slots.length === 0) {
+		return {
+			song,
+			pastedSelection: {
+				startBar: targetBar,
+				endBar: targetBar,
+				startChannel: targetChannel,
+				endChannel: targetChannel,
+			},
+		};
+	}
+
+	let requiredBars = song.totalBars;
+	const maxNeededBar = targetBar + clipboard.barCount;
+	if (maxNeededBar > requiredBars) {
+		requiredBars = Math.min(32, Math.max(requiredBars, maxNeededBar));
+	}
+
+	let currentSong = song;
+	if (requiredBars > currentSong.totalBars) {
+		currentSong = {
+			...currentSong,
+			totalBars: requiredBars,
+			channels: currentSong.channels.map((channel) => ({
+				...channel,
+				barSequence: Array.from(
+					{ length: requiredBars },
+					(_, barIndex) => channel.barSequence[barIndex] ?? 0
+				),
+			})),
+		};
+	}
+
+	const nextChannels = currentSong.channels.map((channel) => ({
+		...channel,
+		barSequence: [...channel.barSequence],
+		patterns: { ...channel.patterns },
+	}));
+
+	let maxPastedBar = targetBar;
+	let maxPastedChan = targetChannel;
+
+	for (const slot of clipboard.slots) {
+		const destinationChannelIndex = targetChannel + slot.channelOffset;
+		const destinationBarIndex = targetBar + slot.barOffset;
+
+		if (
+			destinationChannelIndex < 0 ||
+			destinationChannelIndex >= nextChannels.length
+		) {
+			continue;
+		}
+		if (destinationBarIndex < 0 || destinationBarIndex >= requiredBars) {
+			continue;
+		}
+
+		maxPastedBar = Math.max(maxPastedBar, destinationBarIndex);
+		maxPastedChan = Math.max(maxPastedChan, destinationChannelIndex);
+
+		const targetChannelObject = nextChannels[destinationChannelIndex];
+		if (!targetChannelObject) {
+			continue;
+		}
+
+		if (slot.patternNumber <= 0 || !slot.patternNotes) {
+			targetChannelObject.barSequence[destinationBarIndex] = 0;
+			continue;
+		}
+
+		const existingPattern =
+			targetChannelObject.patterns[String(slot.patternNumber)];
+		const isSameNotes =
+			existingPattern &&
+			existingPattern.notes.length === slot.patternNotes.length &&
+			existingPattern.notes.every(
+				(note, noteIndex) =>
+					slot.patternNotes &&
+					note.step === slot.patternNotes[noteIndex]?.step &&
+					note.pitch === slot.patternNotes[noteIndex]?.pitch &&
+					note.duration === slot.patternNotes[noteIndex]?.duration
+			);
+
+		if (isSameNotes) {
+			targetChannelObject.barSequence[destinationBarIndex] =
+				slot.patternNumber;
+		} else {
+			const newPatternIndex =
+				getNextAvailablePatternIndex(targetChannelObject);
+			const clonedNotes = slot.patternNotes.map((note) => ({
+				...note,
+				id: `note-${note.step}-${note.pitch}-${Math.random().toString(36).slice(2, 7)}`,
+				pitch:
+					targetChannelObject.type === "drum"
+						? Math.max(0, Math.min(7, note.pitch))
+						: Math.max(
+								MELODIC_MIN_MIDI,
+								Math.min(MELODIC_MAX_MIDI, note.pitch)
+							),
+			}));
+
+			targetChannelObject.patterns[String(newPatternIndex)] = {
+				index: newPatternIndex,
+				notes: clonedNotes,
+			};
+			targetChannelObject.barSequence[destinationBarIndex] =
+				newPatternIndex;
+		}
+	}
+
+	return {
+		song: {
+			...currentSong,
+			updatedAt: Date.now(),
+			channels: nextChannels,
+		},
+		pastedSelection: {
+			startBar: targetBar,
+			endBar: maxPastedBar,
+			startChannel: targetChannel,
+			endChannel: maxPastedChan,
+		},
+	};
+};
+
+export const clearBarsInSong = (
+	song: SongProject,
+	rawSelection: BarMatrixSelection
+): SongProject => {
+	const sel = normalizeBarSelection(
+		rawSelection,
+		song.totalBars,
+		song.channels.length
+	);
+	return {
+		...song,
+		updatedAt: Date.now(),
+		channels: song.channels.map((channel, channelIndex) => {
+			if (channelIndex < sel.startChannel || channelIndex > sel.endChannel) {
+				return channel;
+			}
+			return {
+				...channel,
+				barSequence: channel.barSequence.map((patternValue, barIndex) =>
+					barIndex >= sel.startBar && barIndex <= sel.endBar ? 0 : patternValue
+				),
+			};
+		}),
+	};
+};
+
+export const moveBarsInSong = (
+	song: SongProject,
+	rawSelection: BarMatrixSelection,
+	targetBar: number,
+	targetChannel?: number
+): { song: SongProject; nextSelection: BarMatrixSelection } => {
+	const sel = normalizeBarSelection(
+		rawSelection,
+		song.totalBars,
+		song.channels.length
+	);
+	const targetChan = targetChannel ?? sel.startChannel;
+	if (sel.startBar === targetBar && sel.startChannel === targetChan) {
+		return { song, nextSelection: sel };
+	}
+	const clipboard = copyBarsFromSong(song, sel);
+	const clearedSong = clearBarsInSong(song, sel);
+	const { song: nextSong, pastedSelection } = pasteBarsIntoSong(
+		clearedSong,
+		clipboard,
+		targetBar,
+		targetChan
+	);
+	return { song: nextSong, nextSelection: pastedSelection };
+};
+
+export const duplicateBarsInSong = (
+	song: SongProject,
+	rawSelection: BarMatrixSelection,
+	targetBar: number,
+	targetChannel?: number
+): { song: SongProject; nextSelection: BarMatrixSelection } => {
+	const sel = normalizeBarSelection(
+		rawSelection,
+		song.totalBars,
+		song.channels.length
+	);
+	const clipboard = copyBarsFromSong(song, sel);
+	const { song: nextSong, pastedSelection } = pasteBarsIntoSong(
+		song,
+		clipboard,
+		targetBar,
+		targetChannel ?? sel.startChannel
+	);
+	return { song: nextSong, nextSelection: pastedSelection };
+};
+
+export const shiftBarsInSong = (
+	song: SongProject,
+	rawSelection: BarMatrixSelection,
+	deltaBars: number
+): { song: SongProject; nextSelection: BarMatrixSelection } => {
+	const sel = normalizeBarSelection(
+		rawSelection,
+		song.totalBars,
+		song.channels.length
+	);
+	const barSpan = sel.endBar - sel.startBar;
+	const newStartBar = Math.max(
+		0,
+		Math.min(song.totalBars - 1 - barSpan, sel.startBar + deltaBars)
+	);
+	if (newStartBar === sel.startBar) {
+		return { song, nextSelection: sel };
+	}
+	return moveBarsInSong(song, sel, newStartBar, sel.startChannel);
 };

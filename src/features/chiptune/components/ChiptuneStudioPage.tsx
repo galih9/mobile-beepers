@@ -72,7 +72,10 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 		chiptunePlaybackEngine.updateSong(song, loopMode, selectedBarIndex);
 	}, [song, loopMode, selectedBarIndex]);
 
-	// Spacebar shortcut to Play / Pause outside inputs
+	// Global Keyboard Shortcuts (outside text inputs):
+	// Space = Play/Pause, Ctrl/Cmd+Z = Undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y = Redo,
+	// Ctrl/Cmd+C = Copy bars, Ctrl/Cmd+V = Paste bars, Ctrl/Cmd+D = Duplicate,
+	// Ctrl/Cmd+A = Select all bars, Esc = Deselect bars
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
 			const target = event.target as HTMLElement | null;
@@ -80,10 +83,85 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 			if (
 				tagName === "input" ||
 				tagName === "textarea" ||
-				tagName === "select"
+				tagName === "select" ||
+				target?.isContentEditable
 			) {
 				return;
 			}
+
+			const isCtrlOrMeta = event.ctrlKey || event.metaKey;
+
+			// Undo: Cmd+Z / Ctrl+Z (without shift)
+			if (
+				isCtrlOrMeta &&
+				!event.shiftKey &&
+				event.key.toLowerCase() === "z"
+			) {
+				event.preventDefault();
+				useChiptuneStore.getState().undo();
+				return;
+			}
+
+			// Redo: Cmd+Shift+Z / Ctrl+Shift+Z / Cmd+Y / Ctrl+Y
+			if (
+				(isCtrlOrMeta &&
+					event.shiftKey &&
+					event.key.toLowerCase() === "z") ||
+				(isCtrlOrMeta && event.key.toLowerCase() === "y")
+			) {
+				event.preventDefault();
+				useChiptuneStore.getState().redo();
+				return;
+			}
+
+			// Copy selected bars: Cmd+C / Ctrl+C
+			if (isCtrlOrMeta && event.key.toLowerCase() === "c") {
+				const state = useChiptuneStore.getState();
+				if (state.barSelection) {
+					event.preventDefault();
+					state.copySelectedBars();
+					return;
+				}
+			}
+
+			// Paste copied bars: Cmd+V / Ctrl+V
+			if (isCtrlOrMeta && event.key.toLowerCase() === "v") {
+				const state = useChiptuneStore.getState();
+				if (state.copiedBarsClipboard) {
+					event.preventDefault();
+					state.pasteBarsAt(state.selectedBarIndex);
+					return;
+				}
+			}
+
+			// Duplicate selected bars: Cmd+D / Ctrl+D
+			if (isCtrlOrMeta && event.key.toLowerCase() === "d") {
+				const state = useChiptuneStore.getState();
+				if (state.barSelection) {
+					event.preventDefault();
+					state.duplicateSelectedBarsTo(state.barSelection.endBar + 1);
+					return;
+				}
+			}
+
+			// Select All Bars: Cmd+A / Ctrl+A
+			if (isCtrlOrMeta && event.key.toLowerCase() === "a") {
+				event.preventDefault();
+				useChiptuneStore.getState().selectAllBars();
+				return;
+			}
+
+			// Deselect bars: Escape
+			if (event.key === "Escape") {
+				const state = useChiptuneStore.getState();
+				if (state.barSelection) {
+					event.preventDefault();
+					state.clearBarSelection();
+					return;
+				}
+			}
+
+			// Play/Pause toggle: Space
 			if (event.code === "Space") {
 				event.preventDefault();
 				setIsPlaying(!useChiptuneStore.getState().isPlaying);

@@ -1,12 +1,18 @@
 import {
+	ArrowLeftIcon,
+	ArrowRightIcon,
 	Bars2Icon,
 	ChevronDownIcon,
 	ChevronUpIcon,
+	ClipboardDocumentCheckIcon,
+	ClipboardDocumentIcon,
 	DocumentDuplicateIcon,
 	MinusIcon,
 	PlusIcon,
 	SpeakerWaveIcon,
 	SpeakerXMarkIcon,
+	TrashIcon,
+	XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
 	useEffect,
@@ -18,11 +24,12 @@ import { useDrag, useDrop } from "react-dnd";
 import type { FunctionComponent } from "../../../common/types";
 import { getStepsPerBar } from "../store/songHelpers";
 import { useChiptuneStore } from "../store/useChiptuneStore";
-import type { Channel } from "../types/music";
+import type { BarMatrixSelection, Channel } from "../types/music";
 import {
 	DND_ITEM_TYPES,
 	type ChannelRowDragItem,
 	type InstrumentPresetDragItem,
+	type MatrixBarRangeDragItem,
 	type MatrixPatternCellDragItem,
 } from "./dndTypes";
 
@@ -240,12 +247,15 @@ interface MatrixBarCellProps {
 	barIndex: number;
 	patternNumber: number;
 	isSlotSelected: boolean;
+	isInMultiSelection: boolean;
+	barSelection: BarMatrixSelection | null;
 	onSelectOrCycleCell: (
 		channelIndex: number,
 		barIndex: number,
 		patternNumber: number,
 		isSlotSelected: boolean
 	) => void;
+	onShiftSelectCell: (channelIndex: number, barIndex: number) => void;
 	onIncrementPattern: (
 		channelIndex: number,
 		barIndex: number,
@@ -263,6 +273,10 @@ interface MatrixBarCellProps {
 		targetBarIndex: number,
 		patternNumber: number
 	) => void;
+	onDropBarRange: (
+		targetBarIndex: number,
+		targetChannelIndex: number
+	) => void;
 }
 
 const MatrixBarCell = ({
@@ -271,41 +285,65 @@ const MatrixBarCell = ({
 	barIndex,
 	patternNumber,
 	isSlotSelected,
+	isInMultiSelection,
+	barSelection,
 	onSelectOrCycleCell,
+	onShiftSelectCell,
 	onIncrementPattern,
 	onDecrementPattern,
 	onCopyPatternSlot,
+	onDropBarRange,
 }: MatrixBarCellProps): FunctionComponent => {
 	const [{ isDragging }, dragCellRef] = useDrag<
-		MatrixPatternCellDragItem,
+		MatrixPatternCellDragItem | MatrixBarRangeDragItem,
 		void,
 		{ isDragging: boolean }
 	>(
 		() => ({
-			type: DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
-			item: {
-				type: DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
-				channelIndex,
-				barIndex,
-				patternNumber,
-			},
+			type:
+				isInMultiSelection && barSelection
+					? DND_ITEM_TYPES.MATRIX_BAR_RANGE
+					: DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
+			item:
+				isInMultiSelection && barSelection
+					? {
+							type: DND_ITEM_TYPES.MATRIX_BAR_RANGE,
+							selection: barSelection,
+						}
+					: {
+							type: DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
+							channelIndex,
+							barIndex,
+							patternNumber,
+						},
 			collect: (monitor): { isDragging: boolean } => ({
 				isDragging: monitor.isDragging(),
 			}),
 		}),
-		[barIndex, channelIndex, patternNumber]
+		[barIndex, barSelection, channelIndex, isInMultiSelection, patternNumber]
 	);
 
 	const [{ isOver, canDrop }, dropCellRef] = useDrop<
-		MatrixPatternCellDragItem,
+		MatrixPatternCellDragItem | MatrixBarRangeDragItem,
 		void,
 		{ isOver: boolean; canDrop: boolean }
 	>(
 		() => ({
-			accept: DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
-			canDrop: (item): boolean =>
-				item.channelIndex !== channelIndex || item.barIndex !== barIndex,
+			accept: [
+				DND_ITEM_TYPES.MATRIX_PATTERN_CELL,
+				DND_ITEM_TYPES.MATRIX_BAR_RANGE,
+			],
+			canDrop: (item): boolean => {
+				if (item.type === DND_ITEM_TYPES.MATRIX_BAR_RANGE) {
+					return true;
+				}
+				return item.channelIndex !== channelIndex || item.barIndex !== barIndex;
+			},
 			drop: (item): void => {
+				if (item.type === DND_ITEM_TYPES.MATRIX_BAR_RANGE) {
+					onDropBarRange(barIndex, channelIndex);
+					return;
+				}
 				onCopyPatternSlot(
 					item.channelIndex,
 					item.barIndex,
@@ -319,7 +357,7 @@ const MatrixBarCell = ({
 				canDrop: monitor.canDrop(),
 			}),
 		}),
-		[barIndex, channelIndex, onCopyPatternSlot]
+		[barIndex, channelIndex, onCopyPatternSlot, onDropBarRange]
 	);
 
 	return (
@@ -329,35 +367,49 @@ const MatrixBarCell = ({
 			}}
 			className={`relative flex h-8 w-8 shrink-0 items-center overflow-hidden rounded-[2px] font-mono text-xs font-extrabold transition ${
 				isDragging ? "opacity-50" : ""
-			} ${isOver && canDrop ? "z-10 scale-105 ring-2 ring-cyan-400" : ""}`}
+			} ${isOver && canDrop ? "z-20 scale-105 ring-2 ring-cyan-400" : ""} ${
+				isInMultiSelection
+					? "z-10 ring-2 ring-cyan-400 ring-inset shadow-[0_0_8px_rgba(34,211,238,0.7)]"
+					: ""
+			}`}
 			style={{
 				backgroundColor: isSlotSelected
 					? channel.color
-					: patternNumber > 0
-						? "#3d3d3d"
-						: "#000000",
-				color: isSlotSelected ? "#000000" : channel.color,
+					: isInMultiSelection
+						? "#1e293b"
+						: patternNumber > 0
+							? "#3d3d3d"
+							: "#000000",
+				color: isSlotSelected
+					? "#000000"
+					: isInMultiSelection
+						? "#22d3ee"
+						: channel.color,
 				opacity: isDragging
 					? 0.5
-					: !isSlotSelected && patternNumber === 0
+					: !isSlotSelected && !isInMultiSelection && patternNumber === 0
 						? 0.72
 						: 1,
 			}}
 		>
 			<button
 				aria-label={`${channel.name} bar ${barIndex + 1} pattern ${patternNumber}`}
-				title="Click to select/cycle · Drag onto another bar to copy pattern"
+				title="Click to select/cycle · Shift+Click to range-select · Drag onto another bar to arrange/copy"
 				type="button"
 				className={`flex h-full items-center justify-center leading-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${
 					isSlotSelected ? "w-4 pl-0.5 text-[13px]" : "w-full"
 				}`}
-				onClick={(): void => {
-					onSelectOrCycleCell(
-						channelIndex,
-						barIndex,
-						patternNumber,
-						isSlotSelected
-					);
+				onClick={(event): void => {
+					if (event.shiftKey) {
+						onShiftSelectCell(channelIndex, barIndex);
+					} else {
+						onSelectOrCycleCell(
+							channelIndex,
+							barIndex,
+							patternNumber,
+							isSlotSelected
+						);
+					}
 				}}
 			>
 				{patternNumber}
@@ -413,7 +465,9 @@ export const SongMatrixPanel = (): FunctionComponent => {
 	const matrixScrollRef = useRef<HTMLDivElement | null>(null);
 	const loopTrackRef = useRef<HTMLDivElement | null>(null);
 	const loopDragRef = useRef<LoopDragSession | null>(null);
+	const headerDragRef = useRef<{ startBar: number } | null>(null);
 	const [statusAnnouncement, setStatusAnnouncement] = useState("");
+	const [arrangeTargetBar, setArrangeTargetBar] = useState<number | null>(null);
 
 	const song = useChiptuneStore((state) => state.song);
 	const selectedChannelIndex = useChiptuneStore(
@@ -424,6 +478,10 @@ export const SongMatrixPanel = (): FunctionComponent => {
 	const followPlayhead = useChiptuneStore((state) => state.followPlayhead);
 	const playbackBar = useChiptuneStore((state) => state.playbackBar);
 	const playbackStep = useChiptuneStore((state) => state.playbackStep);
+	const barSelection = useChiptuneStore((state) => state.barSelection);
+	const copiedBarsClipboard = useChiptuneStore(
+		(state) => state.copiedBarsClipboard
+	);
 
 	const setSelectedChannelIndex = useChiptuneStore(
 		(state) => state.setSelectedChannelIndex
@@ -451,11 +509,81 @@ export const SongMatrixPanel = (): FunctionComponent => {
 		(state) => state.copyBarPatternSlot
 	);
 	const setLoopRange = useChiptuneStore((state) => state.setLoopRange);
+	const setBarSelection = useChiptuneStore((state) => state.setBarSelection);
+	const clearBarSelection = useChiptuneStore(
+		(state) => state.clearBarSelection
+	);
+	const selectAllBars = useChiptuneStore((state) => state.selectAllBars);
+	const copySelectedBars = useChiptuneStore(
+		(state) => state.copySelectedBars
+	);
+	const pasteBarsAt = useChiptuneStore((state) => state.pasteBarsAt);
+	const moveSelectedBarsTo = useChiptuneStore(
+		(state) => state.moveSelectedBarsTo
+	);
+	const duplicateSelectedBarsTo = useChiptuneStore(
+		(state) => state.duplicateSelectedBarsTo
+	);
+	const shiftSelectedBars = useChiptuneStore(
+		(state) => state.shiftSelectedBars
+	);
+	const clearSelectedBarsContent = useChiptuneStore(
+		(state) => state.clearSelectedBarsContent
+	);
 
 	const activeChannel = song.channels[selectedChannelIndex];
 	const currentPatternNumber =
 		activeChannel?.barSequence[selectedBarIndex] ?? 0;
 	const stepsPerBar = getStepsPerBar(song);
+
+	const defaultArrangeTargetBar = barSelection
+		? Math.min(song.totalBars - 1, barSelection.endBar + 1)
+		: Math.min(song.totalBars - 1, selectedBarIndex + 1);
+	const effectiveArrangeTargetBar =
+		arrangeTargetBar !== null && arrangeTargetBar < song.totalBars
+			? arrangeTargetBar
+			: defaultArrangeTargetBar;
+
+	const handleHeaderPointerDown = (
+		barIndex: number,
+		event: ReactPointerEvent<HTMLButtonElement>
+	): void => {
+		if (event.shiftKey) {
+			const startBar = Math.min(selectedBarIndex, barIndex);
+			const endBar = Math.max(selectedBarIndex, barIndex);
+			setBarSelection({
+				startBar,
+				endBar,
+				startChannel: 0,
+				endChannel: song.channels.length - 1,
+			});
+			setStatusAnnouncement(
+				`Selected bars ${startBar + 1} to ${endBar + 1} across all tracks`
+			);
+			return;
+		}
+		headerDragRef.current = { startBar: barIndex };
+		setSelectedBarIndex(barIndex);
+	};
+
+	const handleHeaderPointerEnter = (barIndex: number): void => {
+		const session = headerDragRef.current;
+		if (!session) {
+			return;
+		}
+		const startBar = Math.min(session.startBar, barIndex);
+		const endBar = Math.max(session.startBar, barIndex);
+		setBarSelection({
+			startBar,
+			endBar,
+			startChannel: 0,
+			endChannel: song.channels.length - 1,
+		});
+	};
+
+	const handleHeaderPointerUp = (): void => {
+		headerDragRef.current = null;
+	};
 
 	useEffect(() => {
 		if (!isPlaying || !followPlayhead) {
@@ -664,24 +792,56 @@ export const SongMatrixPanel = (): FunctionComponent => {
 						style={{ width: `${song.totalBars * BAR_CELL_PITCH}px` }}
 					>
 						{/* Numbered UltraBox Bar Header Strip */}
-						<div className="flex items-center gap-0.5">
+						<div
+							className="flex items-center gap-0.5"
+							onPointerUp={handleHeaderPointerUp}
+						>
 							{Array.from({ length: song.totalBars }, (_, barIndex) => {
 								const isBarSelected = barIndex === selectedBarIndex;
 								const isBeatGroupStart = barIndex % 4 === 0;
+								const isBarInSelection =
+									barSelection !== null &&
+									barIndex >= barSelection.startBar &&
+									barIndex <= barSelection.endBar;
+
 								return (
 									<button
 										key={`bar-header-${barIndex}`}
-										aria-label={`Select bar ${barIndex + 1}`}
+										aria-label={`Select bar ${barIndex + 1}. Drag or Shift-click to select multiple bars.`}
 										type="button"
-										className={`flex h-4 w-8 shrink-0 items-center justify-center rounded-[2px] font-mono text-[9px] font-bold transition ${
-											isBarSelected
-												? "bg-slate-200 text-black"
-												: isBeatGroupStart
-													? "bg-slate-800 text-slate-200 hover:bg-slate-700"
-													: "bg-slate-900/90 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+										className={`flex h-4 w-8 shrink-0 items-center justify-center rounded-[2px] font-mono text-[9px] font-bold transition select-none ${
+											isBarInSelection
+												? "bg-cyan-400 text-slate-950 shadow-[0_0_6px_rgba(34,211,238,0.7)]"
+												: isBarSelected
+													? "bg-slate-200 text-black"
+													: isBeatGroupStart
+														? "bg-slate-800 text-slate-200 hover:bg-slate-700"
+														: "bg-slate-900/90 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
 										}`}
-										onClick={(): void => {
-											setSelectedBarIndex(barIndex);
+										onClick={(event): void => {
+											if (event.shiftKey) {
+												const minBar = Math.min(selectedBarIndex, barIndex);
+												const maxBar = Math.max(selectedBarIndex, barIndex);
+												setBarSelection({
+													startBar: minBar,
+													endBar: maxBar,
+													startChannel: 0,
+													endChannel: song.channels.length - 1,
+												});
+												setSelectedBarIndex(barIndex);
+												setStatusAnnouncement(
+													`Selected bars ${minBar + 1} to ${maxBar + 1} across all tracks`
+												);
+											} else {
+												setSelectedBarIndex(barIndex);
+												clearBarSelection();
+											}
+										}}
+										onPointerDown={(event): void => {
+											handleHeaderPointerDown(barIndex, event);
+										}}
+										onPointerEnter={(): void => {
+											handleHeaderPointerEnter(barIndex);
 										}}
 									>
 										{barIndex + 1}
@@ -699,12 +859,21 @@ export const SongMatrixPanel = (): FunctionComponent => {
 										{channel.barSequence.map((patternNumber, barIndex) => {
 											const isSlotSelected =
 												isChannelSelected && barIndex === selectedBarIndex;
+											const isInMulti =
+												barSelection !== null &&
+												barIndex >= barSelection.startBar &&
+												barIndex <= barSelection.endBar &&
+												channelIndex >= barSelection.startChannel &&
+												channelIndex <= barSelection.endChannel;
+
 											return (
 												<MatrixBarCell
 													key={`${channel.id}-bar-${barIndex}`}
 													barIndex={barIndex}
+													barSelection={barSelection}
 													channel={channel}
 													channelIndex={channelIndex}
+													isInMultiSelection={isInMulti}
 													isSlotSelected={isSlotSelected}
 													patternNumber={patternNumber}
 													onCopyPatternSlot={(
@@ -735,6 +904,18 @@ export const SongMatrixPanel = (): FunctionComponent => {
 															nextPatternNumber
 														);
 													}}
+													onDropBarRange={(
+														targetBarIndex,
+														targetChannelIndex
+													): void => {
+														moveSelectedBarsTo(
+															targetBarIndex,
+															targetChannelIndex
+														);
+														setStatusAnnouncement(
+															`Moved selected bars to bar ${targetBarIndex + 1}`
+														);
+													}}
 													onIncrementPattern={(
 														targetChannelIndex,
 														targetBarIndex,
@@ -761,7 +942,40 @@ export const SongMatrixPanel = (): FunctionComponent => {
 														} else {
 															setSelectedChannelIndex(targetChannelIndex);
 															setSelectedBarIndex(targetBarIndex);
+															clearBarSelection();
 														}
+													}}
+													onShiftSelectCell={(
+														targetTrackIndex,
+														targetCellBarIndex
+													): void => {
+														const minBar = Math.min(
+															selectedBarIndex,
+															targetCellBarIndex
+														);
+														const maxBar = Math.max(
+															selectedBarIndex,
+															targetCellBarIndex
+														);
+														const minChannel = Math.min(
+															selectedChannelIndex,
+															targetTrackIndex
+														);
+														const maxChannel = Math.max(
+															selectedChannelIndex,
+															targetTrackIndex
+														);
+														setBarSelection({
+															startBar: minBar,
+															endBar: maxBar,
+															startChannel: minChannel,
+															endChannel: maxChannel,
+														});
+														setSelectedBarIndex(targetCellBarIndex);
+														setSelectedChannelIndex(targetTrackIndex);
+														setStatusAnnouncement(
+															`Selected bars ${minBar + 1}–${maxBar + 1} across tracks ${minChannel + 1}–${maxChannel + 1}`
+														);
 													}}
 												/>
 											);
@@ -820,13 +1034,248 @@ export const SongMatrixPanel = (): FunctionComponent => {
 				</div>
 			</div>
 
+			{/* Multi-Bar Selection & Arrangement Toolbar */}
+			{barSelection && (
+				<div
+					aria-label="Multiple bar selection and arrange controls"
+					className="flex flex-wrap items-center justify-between gap-1.5 border-t border-cyan-500/40 bg-slate-900/95 px-2.5 py-1 text-xs shadow-md"
+				>
+					<div className="flex min-w-0 items-center gap-1.5 font-mono text-[11px]">
+						<span className="flex size-2 rounded-full bg-cyan-400 animate-pulse" />
+						<span className="font-bold text-cyan-300">
+							Bars {barSelection.startBar + 1}–{barSelection.endBar + 1}
+						</span>
+						<span className="text-slate-400">
+							({barSelection.endBar - barSelection.startBar + 1} bars ·{" "}
+							{barSelection.endChannel - barSelection.startChannel + 1} tracks)
+						</span>
+					</div>
+
+					<div className="flex flex-wrap items-center gap-1">
+						{/* Copy Selection */}
+						<button
+							aria-label="Copy selected bars"
+							className="inline-flex h-6 items-center gap-1 rounded border border-slate-700 bg-slate-800 px-2 text-[10px] font-semibold text-slate-200 transition hover:border-cyan-400 hover:text-white"
+							title="Copy selected bars (Ctrl+C / ⌘C)"
+							type="button"
+							onClick={(): void => {
+								copySelectedBars();
+								setStatusAnnouncement(
+									`Copied bars ${barSelection.startBar + 1} to ${barSelection.endBar + 1} to clipboard`
+								);
+							}}
+						>
+							<ClipboardDocumentIcon
+								aria-hidden="true"
+								className="size-3 text-cyan-300"
+							/>
+							<span>Copy</span>
+						</button>
+
+						{/* Paste Clipboard at Selected Bar */}
+						{copiedBarsClipboard && (
+							<button
+								aria-label={`Paste copied bars at bar ${selectedBarIndex + 1}`}
+								className="inline-flex h-6 items-center gap-1 rounded border border-cyan-500/50 bg-cyan-500/20 px-2 text-[10px] font-semibold text-cyan-200 transition hover:bg-cyan-500/30 hover:text-white"
+								title={`Paste ${copiedBarsClipboard.barCount} bars starting at Bar ${selectedBarIndex + 1} (Ctrl+V / ⌘V)`}
+								type="button"
+								onClick={(): void => {
+									pasteBarsAt(selectedBarIndex);
+									setStatusAnnouncement(
+										`Pasted ${copiedBarsClipboard.barCount} bars at bar ${selectedBarIndex + 1}`
+									);
+								}}
+							>
+								<ClipboardDocumentCheckIcon
+									aria-hidden="true"
+									className="size-3 text-cyan-300"
+								/>
+								<span>Paste at B{selectedBarIndex + 1}</span>
+							</button>
+						)}
+
+						{/* Duplicate Right After Selection */}
+						<button
+							aria-label="Duplicate selected bars right after"
+							className="inline-flex h-6 items-center gap-1 rounded border border-slate-700 bg-slate-800 px-2 text-[10px] font-semibold text-violet-200 transition hover:border-violet-400 hover:text-white"
+							title="Duplicate bars immediately after selection (Ctrl+D / ⌘D)"
+							type="button"
+							onClick={(): void => {
+								duplicateSelectedBarsTo(barSelection.endBar + 1);
+								setStatusAnnouncement(
+									`Duplicated bars to bar ${barSelection.endBar + 2}`
+								);
+							}}
+						>
+							<DocumentDuplicateIcon
+								aria-hidden="true"
+								className="size-3 text-violet-300"
+							/>
+							<span>Duplicate</span>
+						</button>
+
+						{/* Arrange on which bar: Target Bar Selector & Move / Copy */}
+						<div className="flex items-center gap-1 rounded border border-slate-700 bg-slate-950 px-1 py-0.5">
+							<span className="font-mono text-[9px] font-bold text-slate-400">
+								ARRANGE:
+							</span>
+							<select
+								aria-label="Target bar to arrange selected bars"
+								className="h-5 rounded border border-slate-700 bg-slate-900 px-1 font-mono text-[10px] font-bold text-amber-300"
+								value={effectiveArrangeTargetBar}
+								onChange={(event): void => {
+									setArrangeTargetBar(Number.parseInt(event.target.value, 10));
+								}}
+							>
+								{Array.from({ length: song.totalBars }, (_, targetBarIndex) => (
+									<option
+										key={`target-bar-${targetBarIndex}`}
+										value={targetBarIndex}
+									>
+										Bar {targetBarIndex + 1}
+									</option>
+								))}
+							</select>
+							<button
+								aria-label={`Move selected bars to bar ${effectiveArrangeTargetBar + 1}`}
+								className="inline-flex h-5 items-center gap-0.5 rounded bg-amber-500/25 px-1.5 text-[9px] font-bold text-amber-200 hover:bg-amber-500/35 hover:text-white"
+								title={`Move selected bars to Bar ${effectiveArrangeTargetBar + 1}`}
+								type="button"
+								onClick={(): void => {
+									moveSelectedBarsTo(effectiveArrangeTargetBar);
+									setStatusAnnouncement(
+										`Moved bars to bar ${effectiveArrangeTargetBar + 1}`
+									);
+								}}
+							>
+								<span>Move</span>
+							</button>
+							<button
+								aria-label={`Copy selected bars to bar ${effectiveArrangeTargetBar + 1}`}
+								className="inline-flex h-5 items-center gap-0.5 rounded bg-slate-800 px-1.5 text-[9px] font-bold text-slate-200 hover:bg-slate-700 hover:text-white"
+								title={`Copy selected bars to Bar ${effectiveArrangeTargetBar + 1}`}
+								type="button"
+								onClick={(): void => {
+									duplicateSelectedBarsTo(effectiveArrangeTargetBar);
+									setStatusAnnouncement(
+										`Copied bars to bar ${effectiveArrangeTargetBar + 1}`
+									);
+								}}
+							>
+								<span>Copy</span>
+							</button>
+						</div>
+
+						{/* Nudge / Shift Left & Right */}
+						<div className="flex items-center gap-0.5 rounded border border-slate-800 bg-slate-950 p-0.5">
+							<button
+								aria-label="Shift selected bars 1 bar left"
+								className="flex h-5 items-center justify-center rounded px-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+								disabled={barSelection.startBar <= 0}
+								title="Shift left 1 bar"
+								type="button"
+								onClick={(): void => {
+									shiftSelectedBars(-1);
+								}}
+							>
+								<ArrowLeftIcon aria-hidden="true" className="size-2.5" />
+								<span>-1</span>
+							</button>
+							<button
+								aria-label="Shift selected bars 1 bar right"
+								className="flex h-5 items-center justify-center rounded px-1 text-[10px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+								disabled={barSelection.endBar >= song.totalBars - 1}
+								title="Shift right 1 bar"
+								type="button"
+								onClick={(): void => {
+									shiftSelectedBars(1);
+								}}
+							>
+								<span>+1</span>
+								<ArrowRightIcon aria-hidden="true" className="size-2.5" />
+							</button>
+						</div>
+
+						{/* Clear Content */}
+						<button
+							aria-label="Clear contents of selected bars"
+							className="inline-flex h-5 items-center gap-0.5 rounded border border-rose-500/40 bg-rose-500/10 px-1.5 text-[10px] font-semibold text-rose-300 hover:border-rose-400 hover:bg-rose-500/20"
+							title="Clear patterns in selected bars"
+							type="button"
+							onClick={(): void => {
+								clearSelectedBarsContent();
+								setStatusAnnouncement(`Cleared selected bars`);
+							}}
+						>
+							<TrashIcon aria-hidden="true" className="size-2.5" />
+							<span className="hidden sm:inline">Clear</span>
+						</button>
+
+						{/* Deselect */}
+						<button
+							aria-label="Deselect bars"
+							className="flex size-5 items-center justify-center rounded text-slate-400 hover:bg-slate-800 hover:text-white"
+							title="Deselect bars (Esc)"
+							type="button"
+							onClick={(): void => {
+								clearBarSelection();
+							}}
+						>
+							<XMarkIcon aria-hidden="true" className="size-3.5" />
+						</button>
+					</div>
+				</div>
+			)}
+
+			{/* Clipboard Banner when no selection is active */}
+			{!barSelection && copiedBarsClipboard && (
+				<div
+					aria-label="Clipboard paste controls"
+					className="flex items-center justify-between gap-1.5 border-t border-cyan-500/30 bg-slate-950 px-2.5 py-1 text-xs"
+				>
+					<span className="font-mono text-[10px] text-cyan-300">
+						📋 Clipboard: {copiedBarsClipboard.barCount} bars ·{" "}
+						{copiedBarsClipboard.channelCount} tracks
+					</span>
+					<button
+						aria-label={`Paste ${copiedBarsClipboard.barCount} bars at bar ${selectedBarIndex + 1}`}
+						className="inline-flex h-5 items-center gap-1 rounded border border-cyan-500/50 bg-cyan-500/20 px-2 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-500/30 hover:text-white"
+						type="button"
+						onClick={(): void => {
+							pasteBarsAt(selectedBarIndex);
+							setStatusAnnouncement(
+								`Pasted ${copiedBarsClipboard.barCount} bars at bar ${selectedBarIndex + 1}`
+							);
+						}}
+					>
+						<ClipboardDocumentCheckIcon
+							aria-hidden="true"
+							className="size-3 text-cyan-300"
+						/>
+						<span>Paste at Bar {selectedBarIndex + 1}</span>
+					</button>
+				</div>
+			)}
+
 			{/* Slim Pattern Stepper & Clone Strip */}
 			<div className="flex items-center justify-between gap-2 border-t border-slate-900 bg-slate-950 px-2.5 py-1">
 				<span className="truncate font-mono text-[10px] text-slate-400">
-					Drag handles to reorder tracks · Drag bar cells to copy patterns ·
+					Shift-click / drag bar headers to select · Drag cells to arrange ·
 					Drag purple bar for loop
 				</span>
 				<div className="flex shrink-0 items-center gap-1">
+					<button
+						aria-label="Select all bars across all tracks"
+						className="inline-flex h-5 items-center gap-1 rounded border border-slate-800 bg-slate-900 px-1.5 text-[10px] font-semibold text-slate-300 hover:border-slate-700 hover:text-white"
+						title="Select all bars (Ctrl+A / ⌘A)"
+						type="button"
+						onClick={(): void => {
+							selectAllBars();
+						}}
+					>
+						<span>Select All</span>
+					</button>
+
 					<div className="flex items-center rounded border border-slate-800 bg-black">
 						<button
 							aria-label="Decrease pattern number"

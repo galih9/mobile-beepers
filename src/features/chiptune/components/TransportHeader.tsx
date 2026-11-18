@@ -1,6 +1,8 @@
 import {
 	ArrowPathIcon,
 	ArrowPathRoundedSquareIcon,
+	ArrowUturnLeftIcon,
+	ArrowUturnRightIcon,
 	BoltIcon,
 	FolderOpenIcon,
 	MusicalNoteIcon,
@@ -51,6 +53,10 @@ export const TransportHeader = ({
 	);
 	const loadDemoSong = useChiptuneStore((state) => state.loadDemoSong);
 	const loadSfxPreset = useChiptuneStore((state) => state.loadSfxPreset);
+	const canUndo = useChiptuneStore((state) => state.canUndo);
+	const canRedo = useChiptuneStore((state) => state.canRedo);
+	const undo = useChiptuneStore((state) => state.undo);
+	const redo = useChiptuneStore((state) => state.redo);
 	const setTotalBars = useChiptuneStore((state) => state.setTotalBars);
 
 	useEffect(() => {
@@ -149,6 +155,36 @@ export const TransportHeader = ({
 						<span>
 							SFX<span className="hidden xl:inline"> Creator</span>
 						</span>
+					</button>
+				</div>
+
+				{/* Undo & Redo History Controls */}
+				<div
+					aria-label="Undo and redo controls"
+					className="flex items-center rounded-md border border-slate-800 bg-slate-900 p-0.5"
+					role="group"
+				>
+					<button
+						aria-label="Undo last edit"
+						className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+						disabled={!canUndo}
+						title="Undo (Ctrl+Z / ⌘Z)"
+						type="button"
+						onClick={undo}
+					>
+						<ArrowUturnLeftIcon aria-hidden="true" className="size-3" />
+						<span className="hidden xl:inline">Undo</span>
+					</button>
+					<button
+						aria-label="Redo last edit"
+						className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+						disabled={!canRedo}
+						title="Redo (Ctrl+Y / ⌘⇧Z)"
+						type="button"
+						onClick={redo}
+					>
+						<ArrowUturnRightIcon aria-hidden="true" className="size-3" />
+						<span className="hidden xl:inline">Redo</span>
 					</button>
 				</div>
 
