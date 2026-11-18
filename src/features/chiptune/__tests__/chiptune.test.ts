@@ -663,6 +663,21 @@ describe("chiptuneAgentApi", () => {
 		const registered = registerChiptuneAgentApi();
 		expect(window.chiptuneApi).toBe(registered);
 		expect(window.ultrabeepApi).toBe(registered);
+
+		const midiBytes = chiptuneAgentApi.exportMidiBytes();
+		expect(midiBytes.length).toBeGreaterThan(0);
+		expect(
+			String.fromCharCode(
+				midiBytes[0] ?? 0,
+				midiBytes[1] ?? 0,
+				midiBytes[2] ?? 0,
+				midiBytes[3] ?? 0
+			)
+		).toBe("MThd");
+
+		const midiBlob = chiptuneAgentApi.exportMidiBlob();
+		expect(midiBlob.type).toBe("audio/midi");
+		expect(midiBlob.size).toBe(midiBytes.length);
 	});
 
 	it("exposes SFX Creator mode and short-track controls via chiptuneAgentApi", () => {
@@ -761,8 +776,8 @@ describe("SFX Creator Mode", () => {
 		expect(state.song.totalBars).toBe(1);
 		expect(state.loopMode).toBe("once");
 		expect(
-			(getActivePatternForChannel(state.song.channels[0], 0)?.notes.length ?? 0) >
-				0
+			(getActivePatternForChannel(state.song.channels[0], 0)?.notes.length ??
+				0) > 0
 		).toBe(true);
 
 		useChiptuneStore.getState().loadSfxPreset("sfx-defeated");
@@ -904,13 +919,19 @@ describe("Undo and Redo System", () => {
 		const store = useChiptuneStore.getState();
 		expect(store.song.channels[0]?.barSequence[2]).toBe(0);
 		store.setBarPatternIndex(0, 2, 3);
-		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(3);
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(
+			3
+		);
 
 		useChiptuneStore.getState().undo();
-		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(0);
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(
+			0
+		);
 
 		useChiptuneStore.getState().redo();
-		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(3);
+		expect(useChiptuneStore.getState().song.channels[0]?.barSequence[2]).toBe(
+			3
+		);
 	});
 });
 
@@ -943,7 +964,9 @@ describe("Multiple Bar Selection and Arrangement", () => {
 		store.selectAllBars();
 		const allSelection = useChiptuneStore.getState().barSelection;
 		expect(allSelection?.startBar).toBe(0);
-		expect(allSelection?.endBar).toBe(useChiptuneStore.getState().song.totalBars - 1);
+		expect(allSelection?.endBar).toBe(
+			useChiptuneStore.getState().song.totalBars - 1
+		);
 		expect(allSelection?.startChannel).toBe(0);
 		expect(allSelection?.endChannel).toBe(
 			useChiptuneStore.getState().song.channels.length - 1

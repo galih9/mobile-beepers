@@ -1,3 +1,8 @@
+import {
+	renderSongToMidiBlob,
+	renderSongToMidiBytes,
+	type MidiExportOptions,
+} from "../audio/midiExporter";
 import { playPreviewNote } from "../audio/voiceSynthesizer";
 import { renderSongToWavBlob } from "../audio/wavExporter";
 import { DEMO_SONGS } from "../constants/demoSongs";
@@ -334,6 +339,8 @@ export interface ChiptuneAgentApi {
 	exportSongJson: () => string;
 	importSongJson: (jsonOrProject: string | SongProject) => SongProject;
 	exportWavBlob: (loopCount?: number) => Promise<Blob>;
+	exportMidiBlob: (options?: MidiExportOptions) => Blob;
+	exportMidiBytes: (options?: MidiExportOptions) => Uint8Array;
 }
 
 const getValidatedChannelAndBar = (
@@ -382,6 +389,10 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 			exportSongJson: "Serialize current SongProject to JSON.",
 			exportWavBlob:
 				"Render current SongProject offline into a stereo WAV Blob.",
+			exportMidiBlob:
+				"Export current SongProject to a standard multi-track MIDI Blob (SMF Format 1).",
+			exportMidiBytes:
+				"Export current SongProject to a standard multi-track MIDI Uint8Array (SMF Format 1).",
 		},
 		keys: MUSICAL_KEYS,
 		scales: Object.keys(SCALE_DEFINITIONS) as Array<ScaleType>,
@@ -1071,6 +1082,14 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 
 	exportWavBlob: async (loopCount = 1): Promise<Blob> => {
 		return renderSongToWavBlob(useChiptuneStore.getState().song, loopCount);
+	},
+
+	exportMidiBlob: (options?: MidiExportOptions): Blob => {
+		return renderSongToMidiBlob(useChiptuneStore.getState().song, options);
+	},
+
+	exportMidiBytes: (options?: MidiExportOptions): Uint8Array => {
+		return renderSongToMidiBytes(useChiptuneStore.getState().song, options);
 	},
 };
 

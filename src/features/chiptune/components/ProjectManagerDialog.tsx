@@ -4,12 +4,14 @@ import {
 	BookmarkSquareIcon,
 	DocumentPlusIcon,
 	FolderOpenIcon,
+	MusicalNoteIcon,
 	SpeakerWaveIcon,
 	TrashIcon,
 	XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import type { FunctionComponent } from "../../../common/types";
+import { renderSongToMidiBlob } from "../audio/midiExporter";
 import { downloadBlobAsFile, renderSongToWavBlob } from "../audio/wavExporter";
 import { DEMO_SONGS } from "../constants/demoSongs";
 import { MUSICAL_KEYS, SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
@@ -137,6 +139,16 @@ export const ProjectManagerDialog = ({
 		}
 	};
 
+	const handleExportMidi = (): void => {
+		try {
+			const midiBlob = renderSongToMidiBlob(song);
+			downloadBlobAsFile(midiBlob, `${sanitizeFilename(song.title)}.mid`);
+			setStatusMessage("Exported multi-track MIDI (.mid) file.");
+		} catch {
+			setStatusMessage("Failed to export MIDI file.");
+		}
+	};
+
 	const handleExportJson = (): void => {
 		const jsonText = JSON.stringify(song, null, 2);
 		const blob = new Blob([jsonText], { type: "application/json" });
@@ -182,8 +194,8 @@ export const ProjectManagerDialog = ({
 						Song Settings, Demos & Offline Export
 					</h2>
 					<p className="text-xs text-slate-400">
-						All audio synthesis and WAV rendering run 100% locally in your
-						browser.
+						All audio synthesis, MIDI generation, and WAV rendering run 100%
+						locally in your browser.
 					</p>
 				</div>
 				<form method="dialog">
@@ -318,6 +330,15 @@ export const ProjectManagerDialog = ({
 				</button>
 
 				<button
+					className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-400 px-3 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-amber-300"
+					type="button"
+					onClick={handleExportMidi}
+				>
+					<MusicalNoteIcon aria-hidden="true" className="size-4" />
+					<span>Export .MID</span>
+				</button>
+
+				<button
 					className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs font-semibold text-white hover:border-slate-600"
 					type="button"
 					onClick={handleExportJson}
@@ -344,7 +365,7 @@ export const ProjectManagerDialog = ({
 				</button>
 
 				<button
-					className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs font-semibold text-white hover:border-slate-600"
+					className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-xs font-semibold text-white hover:border-slate-600"
 					type="button"
 					onClick={(): void => {
 						createNewProject();

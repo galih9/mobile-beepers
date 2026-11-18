@@ -381,7 +381,7 @@ export const TransportHeader = ({
 						aria-hidden="true"
 						className="size-3.5 text-cyan-400"
 					/>
-					<span>File / WAV</span>
+					<span>File / Export</span>
 				</button>
 
 				<button
