@@ -7,6 +7,10 @@ import { chiptunePlaybackEngine } from "../audio/playbackEngine";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { MobileWorkspaceTab } from "../types/music";
 import { ConfirmResetDialog } from "./ConfirmResetDialog";
+import {
+	DemoSongBrowserDialog,
+	type DemoBrowserTab,
+} from "./DemoSongBrowserDialog";
 import { InstrumentSynthPanel } from "./InstrumentSynthPanel";
 import { PianoRollEditor } from "./PianoRollEditor";
 import { ProjectManagerDialog } from "./ProjectManagerDialog";
@@ -24,6 +28,9 @@ const MOBILE_TABS: Array<{ id: MobileWorkspaceTab; label: string }> = [
 export const ChiptuneStudioPage = (): FunctionComponent => {
 	const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 	const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+	const [demoBrowserTab, setDemoBrowserTab] = useState<DemoBrowserTab | null>(
+		null
+	);
 
 	const song = useChiptuneStore((state) => state.song);
 	const studioMode = useChiptuneStore((state) => state.studioMode);
@@ -78,6 +85,9 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 	// Ctrl/Cmd+A = Select all bars, Esc = Deselect bars
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent): void => {
+			if (document.querySelector("dialog[open]")) {
+				return;
+			}
 			const target = event.target as HTMLElement | null;
 			const tagName = target?.tagName.toLowerCase();
 			if (
@@ -185,6 +195,9 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 		<DndProvider backend={HTML5Backend}>
 			<div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-950 text-slate-100">
 				<TransportHeader
+					onOpenDemoBrowser={(tab = "demos"): void => {
+						setDemoBrowserTab(tab);
+					}}
 					onOpenProjectModal={(): void => {
 						setIsProjectModalOpen(true);
 					}}
@@ -262,10 +275,21 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 					</aside>
 				</main>
 
+				<DemoSongBrowserDialog
+					initialTab={demoBrowserTab ?? "demos"}
+					isOpen={demoBrowserTab !== null}
+					onClose={(): void => {
+						setDemoBrowserTab(null);
+					}}
+				/>
+
 				<ProjectManagerDialog
 					isOpen={isProjectModalOpen}
 					onClose={(): void => {
 						setIsProjectModalOpen(false);
+					}}
+					onOpenDemoBrowser={(tab = "demos"): void => {
+						setDemoBrowserTab(tab);
 					}}
 					onRequestReset={(): void => {
 						setIsResetModalOpen(true);

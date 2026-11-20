@@ -1248,7 +1248,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			onRehydrateStorage:
 				(): ((state?: ChiptuneStoreState) => void) =>
 				(state): void => {
-					if (state?.song.id === "demo-neon-dungeon" && DEMO_SONGS[0]) {
+					if (
+						(state?.song.id === "demo-neon-dungeon" ||
+							state?.song.id === "demo-house-125" ||
+							state?.song.id === "demo-minimal-house-124") &&
+						DEMO_SONGS[0]
+					) {
 						state.song = cloneSongProject(DEMO_SONGS[0]);
 					}
 				},

@@ -1,10 +1,12 @@
 import {
 	ArrowDownTrayIcon,
 	ArrowUpTrayIcon,
+	BoltIcon,
 	BookmarkSquareIcon,
 	DocumentPlusIcon,
 	FolderOpenIcon,
 	MusicalNoteIcon,
+	QueueListIcon,
 	SpeakerWaveIcon,
 	TrashIcon,
 	XMarkIcon,
@@ -18,17 +20,20 @@ import { MUSICAL_KEYS, SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
 import { SFX_PRESETS } from "../constants/sfxPresets";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { MusicalKey, ScaleType, SongProject } from "../types/music";
+import type { DemoBrowserTab } from "./DemoSongBrowserDialog";
 import { SliderControl } from "./SliderControl";
 
 interface ProjectManagerDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
+	onOpenDemoBrowser: (initialTab?: DemoBrowserTab) => void;
 	onRequestReset: () => void;
 }
 
 export const ProjectManagerDialog = ({
 	isOpen,
 	onClose,
+	onOpenDemoBrowser,
 	onRequestReset,
 }: ProjectManagerDialogProps): FunctionComponent => {
 	const titleId = useId();
@@ -43,8 +48,6 @@ export const ProjectManagerDialog = ({
 	const updateSongMetadata = useChiptuneStore(
 		(state) => state.updateSongMetadata
 	);
-	const loadDemoSong = useChiptuneStore((state) => state.loadDemoSong);
-	const loadSfxPreset = useChiptuneStore((state) => state.loadSfxPreset);
 	const createNewProject = useChiptuneStore((state) => state.createNewProject);
 	const importSongProject = useChiptuneStore(
 		(state) => state.importSongProject
@@ -400,63 +403,43 @@ export const ProjectManagerDialog = ({
 				onChange={handleImportFile}
 			/>
 
-			{/* Built-in Demo Songs */}
-			<div className="mb-4">
-				<h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
-					Built-in Offline Demo Songs
-				</h3>
-				<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-					{DEMO_SONGS.map((demo) => (
-						<button
-							key={demo.id}
-							className="flex flex-col items-start rounded-xl border border-slate-800 bg-slate-950/80 p-2.5 text-left transition hover:border-cyan-400/60"
-							type="button"
-							onClick={(): void => {
-								loadDemoSong(demo.id);
-								dialogRef.current?.close();
-							}}
-						>
-							<span className="text-xs font-bold text-white">{demo.title}</span>
-							<span className="mt-0.5 font-mono text-[10px] text-cyan-300">
-								{demo.bpm} BPM · {demo.rootKey} {demo.scale}
-							</span>
-						</button>
-					))}
+			{/* Dedicated Demo & Retro SFX Browser Launcher */}
+			<div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+				<div className="mb-2 flex items-center justify-between gap-2">
+					<h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+						<QueueListIcon
+							aria-hidden="true"
+							className="size-3.5 text-cyan-400"
+						/>
+						<span>Built-in Demos &amp; Retro SFX</span>
+					</h3>
+					<span className="font-mono text-[10px] text-slate-400">
+						{DEMO_SONGS.length} Songs · {SFX_PRESETS.length} SFX
+					</span>
 				</div>
-			</div>
-
-			{/* Built-in Retro SFX & Short Jingles */}
-			<div className="mb-4">
-				<h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-amber-300/90">
-					Built-in Retro SFX &amp; Short Jingles
-				</h3>
-				<div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-					{SFX_PRESETS.map((preset) => (
-						<button
-							key={preset.id}
-							className="flex flex-col items-start rounded-xl border border-slate-800 bg-slate-950/80 p-2.5 text-left transition hover:border-amber-400/60"
-							type="button"
-							onClick={(): void => {
-								loadSfxPreset(preset.id);
-								dialogRef.current?.close();
-							}}
-						>
-							<div className="flex w-full items-center justify-between gap-2">
-								<span className="text-xs font-bold text-white">
-									{preset.title}
-								</span>
-								<span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-200">
-									{preset.badge}
-								</span>
-							</div>
-							<span className="mt-0.5 font-mono text-[10px] text-amber-300">
-								{preset.project.bpm} BPM ·{" "}
-								{preset.project.totalBars === 1
-									? "1 Bar"
-									: `${preset.project.totalBars} Bars`}
-							</span>
-						</button>
-					))}
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+					<button
+						className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 py-2 text-xs font-bold text-cyan-100 transition hover:border-cyan-400 hover:bg-cyan-500/25"
+						type="button"
+						onClick={(): void => {
+							dialogRef.current?.close();
+							onOpenDemoBrowser("demos");
+						}}
+					>
+						<MusicalNoteIcon aria-hidden="true" className="size-4 text-cyan-300" />
+						<span>Browse Demo Songs ({DEMO_SONGS.length})</span>
+					</button>
+					<button
+						className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-100 transition hover:border-amber-400 hover:bg-amber-500/25"
+						type="button"
+						onClick={(): void => {
+							dialogRef.current?.close();
+							onOpenDemoBrowser("sfx");
+						}}
+					>
+						<BoltIcon aria-hidden="true" className="size-4 text-amber-300" />
+						<span>Browse Retro SFX ({SFX_PRESETS.length})</span>
+					</button>
 				</div>
 			</div>
 

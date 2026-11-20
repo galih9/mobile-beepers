@@ -90,6 +90,10 @@ export interface NoteEvent {
 	bendStyle?: NoteBendStyle;
 	/** Per-note fade override */
 	fadeMode?: NoteFadeMode;
+	/** Optional per-note low-pass filter cutoff override in Hz (180 to 14000) */
+	filterCutoff?: number;
+	/** Optional low-pass filter cutoff target in Hz to sweep toward across note duration */
+	filterSweepTo?: number;
 }
 
 export interface NoteBatchMoveUpdate {

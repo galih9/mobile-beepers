@@ -9,6 +9,7 @@ import {
 	PauseIcon,
 	PlayIcon,
 	PlusIcon,
+	QueueListIcon,
 	SpeakerWaveIcon,
 	TrashIcon,
 } from "@heroicons/react/24/outline";
@@ -19,8 +20,10 @@ import { SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
 import { SFX_PRESETS } from "../constants/sfxPresets";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { LoopMode } from "../types/music";
+import type { DemoBrowserTab } from "./DemoSongBrowserDialog";
 
 interface TransportHeaderProps {
+	onOpenDemoBrowser: (initialTab?: DemoBrowserTab) => void;
 	onOpenProjectModal: () => void;
 	onOpenResetModal: () => void;
 }
@@ -30,6 +33,7 @@ const formatTwoDigits = (value: number): string => {
 };
 
 export const TransportHeader = ({
+	onOpenDemoBrowser,
 	onOpenProjectModal,
 	onOpenResetModal,
 }: TransportHeaderProps): FunctionComponent => {
@@ -51,8 +55,6 @@ export const TransportHeader = ({
 	const updateSongMetadata = useChiptuneStore(
 		(state) => state.updateSongMetadata
 	);
-	const loadDemoSong = useChiptuneStore((state) => state.loadDemoSong);
-	const loadSfxPreset = useChiptuneStore((state) => state.loadSfxPreset);
 	const canUndo = useChiptuneStore((state) => state.canUndo);
 	const canRedo = useChiptuneStore((state) => state.canRedo);
 	const undo = useChiptuneStore((state) => state.undo);
@@ -70,10 +72,6 @@ export const TransportHeader = ({
 	}, [song.masterVolume]);
 
 	const sliderStyle = { "--slider-accent": "#00c7ff" } as CSSProperties;
-	const matchedDemoId =
-		DEMO_SONGS.find((demo) => demo.title === song.title)?.id ?? "";
-	const matchedSfxId =
-		SFX_PRESETS.find((preset) => preset.title === song.title)?.id ?? "";
 	const scaleLabel = SCALE_DEFINITIONS[song.scale]?.label ?? song.scale;
 
 	const nextLoopMode: LoopMode =
@@ -293,86 +291,86 @@ export const TransportHeader = ({
 				/>
 			</div>
 
-			{/* Right: Desktop Quick Demo / SFX Switcher + Bar Extender + File/WAV button */}
+			{/* Right: Demo / SFX Library Modal Trigger + Bar Extender + File/WAV button */}
 			<div className="flex shrink-0 items-center gap-1.5">
-				<div className="hidden items-center gap-1.5 lg:flex">
-					{studioMode === "music" ? (
-						<>
-							<select
-								aria-label="Quick load demo song"
-								className="h-7 max-w-44 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-slate-200 hover:border-slate-600"
-								value={matchedDemoId}
-								onChange={(event): void => {
-									if (event.target.value) {
-										loadDemoSong(event.target.value);
-									}
-								}}
-							>
-								<option value="">Load Demo Track...</option>
-								{DEMO_SONGS.map((demo) => (
-									<option key={demo.id} value={demo.id}>
-										{demo.title}
-									</option>
-								))}
-							</select>
+				{studioMode === "music" ? (
+					<>
+						<button
+							aria-label="Open demo song library"
+							className="inline-flex h-7 items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 text-[11px] font-semibold text-cyan-100 transition hover:border-cyan-400 hover:bg-cyan-500/20 hover:text-white"
+							title={`Browse ${DEMO_SONGS.length} demo tracks`}
+							type="button"
+							onClick={(): void => {
+								onOpenDemoBrowser("demos");
+							}}
+						>
+							<QueueListIcon
+								aria-hidden="true"
+								className="size-3.5 shrink-0 text-cyan-300"
+							/>
+							<span className="max-w-32 truncate lg:max-w-40">Demos</span>
+							<span className="hidden rounded bg-cyan-400/20 px-1 font-mono text-[10px] font-bold text-cyan-200 sm:inline">
+								{DEMO_SONGS.length}
+							</span>
+						</button>
 
-							<button
-								aria-label="Add 4 bars to song length"
-								className="inline-flex h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-violet-300 hover:border-violet-400/50 hover:text-white disabled:opacity-40"
-								disabled={song.totalBars >= 32}
-								title="Extend song length by 4 bars"
-								type="button"
-								onClick={(): void => {
-									setTotalBars(Math.min(32, song.totalBars + 4));
-								}}
-							>
-								<PlusIcon aria-hidden="true" className="size-3" />
-								<span>4 Bars</span>
-							</button>
-						</>
-					) : (
-						<>
-							<select
-								aria-label="Quick load retro SFX"
-								className="h-7 max-w-44 rounded-md border border-amber-500/40 bg-slate-900 px-2 text-[11px] font-semibold text-amber-100 hover:border-amber-400"
-								value={matchedSfxId}
-								onChange={(event): void => {
-									if (event.target.value) {
-										loadSfxPreset(event.target.value);
-									}
-								}}
-							>
-								<option value="">Load Retro SFX...</option>
-								{SFX_PRESETS.map((preset) => (
-									<option key={preset.id} value={preset.id}>
-										{preset.title}
-									</option>
-								))}
-							</select>
+						<button
+							aria-label="Add 4 bars to song length"
+							className="hidden h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-violet-300 hover:border-violet-400/50 hover:text-white disabled:opacity-40 lg:inline-flex"
+							disabled={song.totalBars >= 32}
+							title="Extend song length by 4 bars"
+							type="button"
+							onClick={(): void => {
+								setTotalBars(Math.min(32, song.totalBars + 4));
+							}}
+						>
+							<PlusIcon aria-hidden="true" className="size-3" />
+							<span>4 Bars</span>
+						</button>
+					</>
+				) : (
+					<>
+						<button
+							aria-label="Open retro SFX library"
+							className="inline-flex h-7 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[11px] font-semibold text-amber-100 transition hover:border-amber-400 hover:bg-amber-500/20 hover:text-white"
+							title={`Browse ${SFX_PRESETS.length} retro SFX presets`}
+							type="button"
+							onClick={(): void => {
+								onOpenDemoBrowser("sfx");
+							}}
+						>
+							<QueueListIcon
+								aria-hidden="true"
+								className="size-3.5 shrink-0 text-amber-300"
+							/>
+							<span className="max-w-32 truncate">SFX Library</span>
+							<span className="hidden rounded bg-amber-400/20 px-1 font-mono text-[10px] font-bold text-amber-200 sm:inline">
+								{SFX_PRESETS.length}
+							</span>
+						</button>
 
-							<button
-								aria-label="Add 1 bar to SFX length"
-								className="inline-flex h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-amber-300 hover:border-amber-400/50 hover:text-white disabled:opacity-40"
-								disabled={song.totalBars >= 8}
-								title="Extend short SFX track by 1 bar"
-								type="button"
-								onClick={(): void => {
-									setTotalBars(Math.min(8, song.totalBars + 1));
-								}}
-							>
-								<PlusIcon aria-hidden="true" className="size-3" />
-								<span>1 Bar</span>
-							</button>
-						</>
-					)}
-				</div>
+						<button
+							aria-label="Add 1 bar to SFX length"
+							className="hidden h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-amber-300 hover:border-amber-400/50 hover:text-white disabled:opacity-40 lg:inline-flex"
+							disabled={song.totalBars >= 8}
+							title="Extend short SFX track by 1 bar"
+							type="button"
+							onClick={(): void => {
+								setTotalBars(Math.min(8, song.totalBars + 1));
+							}}
+						>
+							<PlusIcon aria-hidden="true" className="size-3" />
+							<span>1 Bar</span>
+						</button>
+					</>
+				)}
 
-				<span className="hidden max-w-36 truncate font-mono text-[11px] font-semibold text-slate-300 md:inline lg:hidden">
+				<span className="hidden max-w-36 truncate font-mono text-[11px] font-semibold text-slate-300 xl:inline">
 					{song.title}
 				</span>
 
 				<button
-					aria-label="Open demos, song settings, and export"
+					aria-label="Open song settings, library, and export"
 					className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs font-semibold text-slate-200 hover:border-cyan-400/60 hover:text-white"
 					type="button"
 					onClick={onOpenProjectModal}
@@ -381,7 +379,8 @@ export const TransportHeader = ({
 						aria-hidden="true"
 						className="size-3.5 text-cyan-400"
 					/>
-					<span>File / Export</span>
+					<span className="hidden sm:inline">File / Export</span>
+					<span className="sm:hidden">File</span>
 				</button>
 
 				<button

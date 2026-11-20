@@ -60,6 +60,8 @@ export interface AgentNoteInput {
 	pitchBend?: number;
 	bendStyle?: NoteBendStyle;
 	fadeMode?: NoteFadeMode;
+	filterCutoff?: number;
+	filterSweepTo?: number;
 }
 
 export interface AgentChannelSpecification {
@@ -206,6 +208,15 @@ const normalizeAgentNote = (
 	const velocity = clampNumber(input.velocity ?? 0.9, 0.1, 1);
 	const pitchBend = clampNumber(Math.round(input.pitchBend ?? 0), -24, 24);
 
+	const filterCutoff =
+		input.filterCutoff !== undefined && Number.isFinite(input.filterCutoff)
+			? clampNumber(Math.round(input.filterCutoff), 180, 14000)
+			: undefined;
+	const filterSweepTo =
+		input.filterSweepTo !== undefined && Number.isFinite(input.filterSweepTo)
+			? clampNumber(Math.round(input.filterSweepTo), 180, 14000)
+			: undefined;
+
 	return {
 		id: `note-${step}-${pitch}-${Math.random().toString(36).slice(2, 8)}`,
 		step,
@@ -215,6 +226,8 @@ const normalizeAgentNote = (
 		pitchBend,
 		...(input.bendStyle ? { bendStyle: input.bendStyle } : {}),
 		...(input.fadeMode ? { fadeMode: input.fadeMode } : {}),
+		...(filterCutoff !== undefined ? { filterCutoff } : {}),
+		...(filterSweepTo !== undefined ? { filterSweepTo } : {}),
 	};
 };
 

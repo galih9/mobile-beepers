@@ -214,7 +214,9 @@ const scheduleDrumHit = (
 	startTime: number,
 	velocity: number,
 	instrument: InstrumentConfiguration,
-	effectiveFade: number
+	effectiveFade: number,
+	filterCutoff?: number,
+	filterSweepTo?: number
 ): void => {
 	const assets = getAudioAssetsForContext(audioContext);
 	const panner = audioContext.createStereoPanner();
@@ -238,10 +240,81 @@ const scheduleDrumHit = (
 	} else {
 		masterGain.gain.setValueAtTime(peakLevel, startTime);
 	}
-	masterGain.connect(panner);
+	if (filterCutoff !== undefined) {
+		const drumFilter = audioContext.createBiquadFilter();
+		drumFilter.type = "lowpass";
+		const clampedStart = Math.max(180, Math.min(14000, filterCutoff));
+		drumFilter.frequency.setValueAtTime(clampedStart, startTime);
+		drumFilter.Q.value = 1.6;
+		if (filterSweepTo !== undefined) {
+			const clampedEnd = Math.max(180, Math.min(14000, filterSweepTo));
+			drumFilter.frequency.exponentialRampToValueAtTime(
+				clampedEnd,
+				startTime + 0.18
+			);
+		}
+		masterGain.connect(drumFilter);
+		drumFilter.connect(panner);
+	} else {
+		masterGain.connect(panner);
+	}
 	panner.connect(destination);
 
 	if (pitch === 0) {
+		if (instrument.presetId === "minimal-house-kick") {
+			// Punchy retro pulse/noise minimal house kick
+			const subOscillator = audioContext.createOscillator();
+			const subGain = audioContext.createGain();
+			subOscillator.type = "triangle";
+			subOscillator.frequency.setValueAtTime(155, startTime);
+			subOscillator.frequency.exponentialRampToValueAtTime(
+				42,
+				startTime + 0.095
+			);
+			subGain.gain.setValueAtTime(1.05, startTime);
+			subGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
+			subOscillator.connect(subGain);
+			subGain.connect(masterGain);
+			subOscillator.start(startTime);
+			subOscillator.stop(startTime + 0.21);
+
+			// Low-frequency 25% pulse body for classic chiptune weight
+			const pulseOscillator = audioContext.createOscillator();
+			const pulseFilter = audioContext.createBiquadFilter();
+			const pulseGain = audioContext.createGain();
+			pulseOscillator.setPeriodicWave(assets.pulse25);
+			pulseOscillator.frequency.setValueAtTime(125, startTime);
+			pulseOscillator.frequency.exponentialRampToValueAtTime(
+				46,
+				startTime + 0.055
+			);
+			pulseFilter.type = "lowpass";
+			pulseFilter.frequency.setValueAtTime(380, startTime);
+			pulseGain.gain.setValueAtTime(0.42, startTime);
+			pulseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.085);
+			pulseOscillator.connect(pulseFilter);
+			pulseFilter.connect(pulseGain);
+			pulseGain.connect(masterGain);
+			pulseOscillator.start(startTime);
+			pulseOscillator.stop(startTime + 0.095);
+
+			// Crisp 16ms LFSR noise transient click for house punch
+			const clickSource = audioContext.createBufferSource();
+			clickSource.buffer = assets.whiteNoiseBuffer;
+			const clickFilter = audioContext.createBiquadFilter();
+			clickFilter.type = "bandpass";
+			clickFilter.frequency.setValueAtTime(1850, startTime);
+			const clickGain = audioContext.createGain();
+			clickGain.gain.setValueAtTime(0.36, startTime);
+			clickGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.016);
+			clickSource.connect(clickFilter);
+			clickFilter.connect(clickGain);
+			clickGain.connect(masterGain);
+			clickSource.start(startTime);
+			clickSource.stop(startTime + 0.02);
+			return;
+		}
+
 		// 8-bit Kick
 		const oscillator = audioContext.createOscillator();
 		const kickGain = audioContext.createGain();
@@ -289,14 +362,21 @@ const scheduleDrumHit = (
 
 	if (pitch === 2 || pitch === 3) {
 		// Closed (2) or Open (3) Metallic Hi-Hat
-		const decaySeconds = pitch === 2 ? 0.055 : 0.24;
+		const isHouseHats = instrument.presetId === "minimal-house-hats";
+		const decaySeconds = isHouseHats
+			? pitch === 2
+				? 0.045
+				: 0.175
+			: pitch === 2
+				? 0.055
+				: 0.24;
 		const noiseSource = audioContext.createBufferSource();
 		noiseSource.buffer = assets.metallicNoiseBuffer;
 		const highPass = audioContext.createBiquadFilter();
 		highPass.type = "highpass";
-		highPass.frequency.setValueAtTime(5200, startTime);
+		highPass.frequency.setValueAtTime(isHouseHats ? 6200 : 5200, startTime);
 		const hatGain = audioContext.createGain();
-		hatGain.gain.setValueAtTime(0.55, startTime);
+		hatGain.gain.setValueAtTime(isHouseHats ? 0.58 : 0.55, startTime);
 		hatGain.gain.exponentialRampToValueAtTime(0.001, startTime + decaySeconds);
 		noiseSource.connect(highPass);
 		highPass.connect(hatGain);
@@ -380,7 +460,9 @@ export const scheduleChannelNote = (
 			startTime,
 			note.velocity,
 			instrument,
-			effectiveFade
+			effectiveFade,
+			note.filterCutoff,
+			note.filterSweepTo
 		);
 		return;
 	}
@@ -451,10 +533,24 @@ export const scheduleChannelNote = (
 		);
 	}
 
+	const startCutoff = Math.max(
+		180,
+		Math.min(14000, note.filterCutoff ?? instrument.filterCutoff)
+	);
 	const lowPassFilter = audioContext.createBiquadFilter();
 	lowPassFilter.type = "lowpass";
-	lowPassFilter.frequency.setValueAtTime(instrument.filterCutoff, startTime);
-	lowPassFilter.Q.value = 1.1;
+	lowPassFilter.frequency.setValueAtTime(startCutoff, startTime);
+	lowPassFilter.Q.value =
+		note.filterCutoff !== undefined || note.filterSweepTo !== undefined
+			? 2.2
+			: 1.1;
+	if (note.filterSweepTo !== undefined) {
+		const endCutoff = Math.max(180, Math.min(14000, note.filterSweepTo));
+		lowPassFilter.frequency.exponentialRampToValueAtTime(
+			endCutoff,
+			startTime + Math.max(0.03, noteDurationSeconds)
+		);
+	}
 
 	const panner = audioContext.createStereoPanner();
 	panner.pan.setValueAtTime(instrument.pan, startTime);

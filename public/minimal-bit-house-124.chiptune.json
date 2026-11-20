@@ -1,0 +1,1208 @@
+{
+  "id": "demo-minimal-house-124",
+  "title": "Minimal Bit House 124",
+  "author": "UltraBeep Demo",
+  "bpm": 124,
+  "beatsPerBar": 4,
+  "stepsPerBeat": 4,
+  "totalBars": 32,
+  "loopStartBar": 0,
+  "loopEndBar": 31,
+  "swing": 0.1,
+  "rootKey": "D",
+  "scale": "dorian",
+  "masterVolume": 0.86,
+  "updatedAt": 1700000010000,
+  "channels": [
+    {
+      "id": "mbh-stab",
+      "name": "2-Chord Pulse Stab",
+      "type": "pitch",
+      "color": "#00c7ff",
+      "muted": false,
+      "solo": false,
+      "instrument": {
+        "presetId": "minimal-house-stab",
+        "waveform": "pulse25",
+        "volume": 0.56,
+        "pan": 0.14,
+        "attack": 0.005,
+        "decay": 0.14,
+        "sustain": 0.22,
+        "release": 0.12,
+        "filterCutoff": 2400,
+        "vibratoDepth": 0,
+        "vibratoSpeed": 4,
+        "arpMode": "none",
+        "echoMix": 0.3,
+        "echoTimeSeconds": 0.363,
+        "detuneCents": 3
+      },
+      "barSequence": [
+        1,
+        0,
+        0,
+        0,
+        1,
+        2,
+        1,
+        2,
+        3,
+        4,
+        3,
+        4,
+        5,
+        6,
+        5,
+        6,
+        1,
+        2,
+        3,
+        4,
+        7,
+        7,
+        5,
+        6,
+        5,
+        6,
+        3,
+        4,
+        1,
+        2,
+        0,
+        0
+      ],
+      "patterns": {
+        "1": {
+          "index": 1,
+          "notes": [
+            {
+              "id": "note-3-57-4lyri",
+              "step": 3,
+              "pitch": 57,
+              "duration": 2,
+              "velocity": 0.68,
+              "pitchBend": 0,
+              "filterCutoff": 1150,
+              "filterSweepTo": 720
+            },
+            {
+              "id": "note-3-60-w1rzo",
+              "step": 3,
+              "pitch": 60,
+              "duration": 2,
+              "velocity": 0.68,
+              "pitchBend": 0,
+              "filterCutoff": 1150,
+              "filterSweepTo": 720
+            },
+            {
+              "id": "note-3-64-x4t4l",
+              "step": 3,
+              "pitch": 64,
+              "duration": 2,
+              "velocity": 0.68,
+              "pitchBend": 0,
+              "filterCutoff": 1150,
+              "filterSweepTo": 720
+            },
+            {
+              "id": "note-10-57-v4wx1",
+              "step": 10,
+              "pitch": 57,
+              "duration": 1,
+              "velocity": 0.6,
+              "pitchBend": 0,
+              "filterCutoff": 1050,
+              "filterSweepTo": 680
+            },
+            {
+              "id": "note-10-60-kbe61",
+              "step": 10,
+              "pitch": 60,
+              "duration": 1,
+              "velocity": 0.6,
+              "pitchBend": 0,
+              "filterCutoff": 1050,
+              "filterSweepTo": 680
+            },
+            {
+              "id": "note-10-64-gcjp5",
+              "step": 10,
+              "pitch": 64,
+              "duration": 1,
+              "velocity": 0.6,
+              "pitchBend": 0,
+              "filterCutoff": 1050,
+              "filterSweepTo": 680
+            }
+          ]
+        },
+        "2": {
+          "index": 2,
+          "notes": [
+            {
+              "id": "note-6-55-rv6ll",
+              "step": 6,
+              "pitch": 55,
+              "duration": 2,
+              "velocity": 0.66,
+              "pitchBend": 0,
+              "filterCutoff": 1100,
+              "filterSweepTo": 700
+            },
+            {
+              "id": "note-6-59-zmtwe",
+              "step": 6,
+              "pitch": 59,
+              "duration": 2,
+              "velocity": 0.66,
+              "pitchBend": 0,
+              "filterCutoff": 1100,
+              "filterSweepTo": 700
+            },
+            {
+              "id": "note-6-62-hfhyo",
+              "step": 6,
+              "pitch": 62,
+              "duration": 2,
+              "velocity": 0.66,
+              "pitchBend": 0,
+              "filterCutoff": 1100,
+              "filterSweepTo": 700
+            }
+          ]
+        },
+        "3": {
+          "index": 3,
+          "notes": [
+            {
+              "id": "note-3-57-menmb",
+              "step": 3,
+              "pitch": 57,
+              "duration": 2,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 2200,
+              "filterSweepTo": 1300
+            },
+            {
+              "id": "note-3-60-mrt26",
+              "step": 3,
+              "pitch": 60,
+              "duration": 2,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 2200,
+              "filterSweepTo": 1300
+            },
+            {
+              "id": "note-3-64-3693f",
+              "step": 3,
+              "pitch": 64,
+              "duration": 2,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 2200,
+              "filterSweepTo": 1300
+            },
+            {
+              "id": "note-10-57-n7f5r",
+              "step": 10,
+              "pitch": 57,
+              "duration": 1,
+              "velocity": 0.7,
+              "pitchBend": 0,
+              "filterCutoff": 2000,
+              "filterSweepTo": 1200
+            },
+            {
+              "id": "note-10-60-02fqa",
+              "step": 10,
+              "pitch": 60,
+              "duration": 1,
+              "velocity": 0.7,
+              "pitchBend": 0,
+              "filterCutoff": 2000,
+              "filterSweepTo": 1200
+            },
+            {
+              "id": "note-10-64-ow0pr",
+              "step": 10,
+              "pitch": 64,
+              "duration": 1,
+              "velocity": 0.7,
+              "pitchBend": 0,
+              "filterCutoff": 2000,
+              "filterSweepTo": 1200
+            }
+          ]
+        },
+        "4": {
+          "index": 4,
+          "notes": [
+            {
+              "id": "note-6-55-9znui",
+              "step": 6,
+              "pitch": 55,
+              "duration": 2,
+              "velocity": 0.76,
+              "pitchBend": 0,
+              "filterCutoff": 2050,
+              "filterSweepTo": 1250
+            },
+            {
+              "id": "note-6-59-a252w",
+              "step": 6,
+              "pitch": 59,
+              "duration": 2,
+              "velocity": 0.76,
+              "pitchBend": 0,
+              "filterCutoff": 2050,
+              "filterSweepTo": 1250
+            },
+            {
+              "id": "note-6-62-5d7bu",
+              "step": 6,
+              "pitch": 62,
+              "duration": 2,
+              "velocity": 0.76,
+              "pitchBend": 0,
+              "filterCutoff": 2050,
+              "filterSweepTo": 1250
+            }
+          ]
+        },
+        "5": {
+          "index": 5,
+          "notes": [
+            {
+              "id": "note-3-57-if77l",
+              "step": 3,
+              "pitch": 57,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 4200,
+              "filterSweepTo": 2100
+            },
+            {
+              "id": "note-3-60-ql25d",
+              "step": 3,
+              "pitch": 60,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 4200,
+              "filterSweepTo": 2100
+            },
+            {
+              "id": "note-3-64-a00ry",
+              "step": 3,
+              "pitch": 64,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 4200,
+              "filterSweepTo": 2100
+            },
+            {
+              "id": "note-10-57-f2n5b",
+              "step": 10,
+              "pitch": 57,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-10-60-75p8b",
+              "step": 10,
+              "pitch": 60,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-10-64-gntsf",
+              "step": 10,
+              "pitch": 64,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-14-57-e50n9",
+              "step": 14,
+              "pitch": 57,
+              "duration": 1,
+              "velocity": 0.5,
+              "pitchBend": 0,
+              "filterCutoff": 2800,
+              "filterSweepTo": 1500
+            },
+            {
+              "id": "note-14-60-gssyq",
+              "step": 14,
+              "pitch": 60,
+              "duration": 1,
+              "velocity": 0.5,
+              "pitchBend": 0,
+              "filterCutoff": 2800,
+              "filterSweepTo": 1500
+            },
+            {
+              "id": "note-14-64-g4l4x",
+              "step": 14,
+              "pitch": 64,
+              "duration": 1,
+              "velocity": 0.5,
+              "pitchBend": 0,
+              "filterCutoff": 2800,
+              "filterSweepTo": 1500
+            }
+          ]
+        },
+        "6": {
+          "index": 6,
+          "notes": [
+            {
+              "id": "note-6-55-fu91n",
+              "step": 6,
+              "pitch": 55,
+              "duration": 2,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-6-59-y0ch1",
+              "step": 6,
+              "pitch": 59,
+              "duration": 2,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-6-62-ucict",
+              "step": 6,
+              "pitch": 62,
+              "duration": 2,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 3900,
+              "filterSweepTo": 1950
+            },
+            {
+              "id": "note-14-57-qw2by",
+              "step": 14,
+              "pitch": 57,
+              "duration": 1,
+              "velocity": 0.52,
+              "pitchBend": 0,
+              "filterCutoff": 2600,
+              "filterSweepTo": 1400
+            },
+            {
+              "id": "note-14-60-zw7zl",
+              "step": 14,
+              "pitch": 60,
+              "duration": 1,
+              "velocity": 0.52,
+              "pitchBend": 0,
+              "filterCutoff": 2600,
+              "filterSweepTo": 1400
+            },
+            {
+              "id": "note-14-64-ff50w",
+              "step": 14,
+              "pitch": 64,
+              "duration": 1,
+              "velocity": 0.52,
+              "pitchBend": 0,
+              "filterCutoff": 2600,
+              "filterSweepTo": 1400
+            }
+          ]
+        },
+        "7": {
+          "index": 7,
+          "notes": [
+            {
+              "id": "note-0-57-c8fkq",
+              "step": 0,
+              "pitch": 57,
+              "duration": 6,
+              "velocity": 0.72,
+              "pitchBend": 0,
+              "filterCutoff": 620,
+              "filterSweepTo": 2600,
+              "fadeMode": "fadeIn"
+            },
+            {
+              "id": "note-0-60-9wpfw",
+              "step": 0,
+              "pitch": 60,
+              "duration": 6,
+              "velocity": 0.72,
+              "pitchBend": 0,
+              "filterCutoff": 620,
+              "filterSweepTo": 2600,
+              "fadeMode": "fadeIn"
+            },
+            {
+              "id": "note-0-64-bm3je",
+              "step": 0,
+              "pitch": 64,
+              "duration": 6,
+              "velocity": 0.72,
+              "pitchBend": 0,
+              "filterCutoff": 620,
+              "filterSweepTo": 2600,
+              "fadeMode": "fadeIn"
+            },
+            {
+              "id": "note-8-55-akcm1",
+              "step": 8,
+              "pitch": 55,
+              "duration": 8,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 1200,
+              "filterSweepTo": 4800,
+              "fadeMode": "fadeIn"
+            },
+            {
+              "id": "note-8-59-zdsew",
+              "step": 8,
+              "pitch": 59,
+              "duration": 8,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 1200,
+              "filterSweepTo": 4800,
+              "fadeMode": "fadeIn"
+            },
+            {
+              "id": "note-8-62-4cv7m",
+              "step": 8,
+              "pitch": 62,
+              "duration": 8,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 1200,
+              "filterSweepTo": 4800,
+              "fadeMode": "fadeIn"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mbh-bass",
+      "name": "Triangle Sub Bass",
+      "type": "pitch",
+      "color": "#ff9233",
+      "muted": false,
+      "solo": false,
+      "instrument": {
+        "presetId": "minimal-house-bass",
+        "waveform": "triangle",
+        "volume": 0.88,
+        "pan": 0,
+        "attack": 0.004,
+        "decay": 0.12,
+        "sustain": 0.72,
+        "release": 0.05,
+        "filterCutoff": 1450,
+        "vibratoDepth": 0,
+        "vibratoSpeed": 4,
+        "arpMode": "none",
+        "echoMix": 0,
+        "echoTimeSeconds": 0.18,
+        "detuneCents": 0
+      },
+      "barSequence": [
+        0,
+        0,
+        0,
+        0,
+        3,
+        3,
+        1,
+        2,
+        1,
+        2,
+        1,
+        2,
+        4,
+        2,
+        4,
+        2,
+        0,
+        0,
+        3,
+        3,
+        1,
+        2,
+        4,
+        2,
+        4,
+        2,
+        1,
+        2,
+        3,
+        3,
+        0,
+        0
+      ],
+      "patterns": {
+        "1": {
+          "index": 1,
+          "notes": [
+            {
+              "id": "note-0-38-dcijj",
+              "step": 0,
+              "pitch": 38,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 1350
+            },
+            {
+              "id": "note-3-38-14qis",
+              "step": 3,
+              "pitch": 38,
+              "duration": 2,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 1300
+            },
+            {
+              "id": "note-6-41-ue26j",
+              "step": 6,
+              "pitch": 41,
+              "duration": 2,
+              "velocity": 0.88,
+              "pitchBend": 0,
+              "filterCutoff": 1450
+            },
+            {
+              "id": "note-10-45-1ff7j",
+              "step": 10,
+              "pitch": 45,
+              "duration": 2,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 1500
+            },
+            {
+              "id": "note-14-48-t9ngr",
+              "step": 14,
+              "pitch": 48,
+              "duration": 2,
+              "velocity": 0.82,
+              "pitchBend": 0,
+              "filterCutoff": 1550
+            }
+          ]
+        },
+        "2": {
+          "index": 2,
+          "notes": [
+            {
+              "id": "note-0-38-5b314",
+              "step": 0,
+              "pitch": 38,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 1350
+            },
+            {
+              "id": "note-6-43-7uj54",
+              "step": 6,
+              "pitch": 43,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 1450
+            },
+            {
+              "id": "note-10-40-2jkj9",
+              "step": 10,
+              "pitch": 40,
+              "duration": 2,
+              "velocity": 0.82,
+              "pitchBend": 0,
+              "filterCutoff": 1400
+            },
+            {
+              "id": "note-12-43-jtp7r",
+              "step": 12,
+              "pitch": 43,
+              "duration": 1,
+              "velocity": 0.74,
+              "pitchBend": 0,
+              "filterCutoff": 1450
+            },
+            {
+              "id": "note-14-45-k5536",
+              "step": 14,
+              "pitch": 45,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 1500
+            }
+          ]
+        },
+        "3": {
+          "index": 3,
+          "notes": [
+            {
+              "id": "note-0-38-h63pz",
+              "step": 0,
+              "pitch": 38,
+              "duration": 2,
+              "velocity": 0.82,
+              "pitchBend": 0,
+              "filterCutoff": 680
+            },
+            {
+              "id": "note-6-41-huhdu",
+              "step": 6,
+              "pitch": 41,
+              "duration": 2,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 700
+            },
+            {
+              "id": "note-10-45-2au3w",
+              "step": 10,
+              "pitch": 45,
+              "duration": 2,
+              "velocity": 0.76,
+              "pitchBend": 0,
+              "filterCutoff": 740
+            }
+          ]
+        },
+        "4": {
+          "index": 4,
+          "notes": [
+            {
+              "id": "note-0-38-wqedl",
+              "step": 0,
+              "pitch": 38,
+              "duration": 2,
+              "velocity": 0.88,
+              "pitchBend": 0,
+              "filterCutoff": 1750
+            },
+            {
+              "id": "note-3-50-o2ico",
+              "step": 3,
+              "pitch": 50,
+              "duration": 1,
+              "velocity": 0.76,
+              "pitchBend": 0,
+              "filterCutoff": 1950
+            },
+            {
+              "id": "note-6-41-mbeij",
+              "step": 6,
+              "pitch": 41,
+              "duration": 2,
+              "velocity": 0.9,
+              "pitchBend": 0,
+              "filterCutoff": 1750
+            },
+            {
+              "id": "note-10-45-g0743",
+              "step": 10,
+              "pitch": 45,
+              "duration": 2,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 1800
+            },
+            {
+              "id": "note-14-48-alpqm",
+              "step": 14,
+              "pitch": 48,
+              "duration": 1,
+              "velocity": 0.84,
+              "pitchBend": 0,
+              "filterCutoff": 1950
+            },
+            {
+              "id": "note-15-45-aaqrt",
+              "step": 15,
+              "pitch": 45,
+              "duration": 1,
+              "velocity": 0.72,
+              "pitchBend": 0,
+              "filterCutoff": 1750
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mbh-kick",
+      "name": "Pulse/Noise Kick",
+      "type": "drum",
+      "color": "#b366ff",
+      "muted": false,
+      "solo": false,
+      "instrument": {
+        "presetId": "minimal-house-kick",
+        "waveform": "retroKit",
+        "volume": 0.92,
+        "pan": 0,
+        "attack": 0.002,
+        "decay": 0.16,
+        "sustain": 0.15,
+        "release": 0.06,
+        "filterCutoff": 8000,
+        "vibratoDepth": 0,
+        "vibratoSpeed": 4,
+        "arpMode": "none",
+        "echoMix": 0,
+        "echoTimeSeconds": 0.12,
+        "detuneCents": 0
+      },
+      "barSequence": [
+        2,
+        2,
+        1,
+        1,
+        1,
+        1,
+        1,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        3,
+        0,
+        0,
+        0,
+        0,
+        2,
+        3,
+        1,
+        1,
+        1,
+        4,
+        1,
+        1,
+        1,
+        1,
+        2,
+        3
+      ],
+      "patterns": {
+        "1": {
+          "index": 1,
+          "notes": [
+            {
+              "id": "note-0-0-1nvx5",
+              "step": 0,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.98,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-4-0-4qbif",
+              "step": 4,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.92,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-8-0-28dl4",
+              "step": 8,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.96,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-12-0-9jgrc",
+              "step": 12,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.93,
+              "pitchBend": 0
+            }
+          ]
+        },
+        "2": {
+          "index": 2,
+          "notes": [
+            {
+              "id": "note-0-0-oynkl",
+              "step": 0,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.9,
+              "pitchBend": 0,
+              "filterCutoff": 320
+            },
+            {
+              "id": "note-4-0-ifczc",
+              "step": 4,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.86,
+              "pitchBend": 0,
+              "filterCutoff": 340
+            },
+            {
+              "id": "note-8-0-aznug",
+              "step": 8,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.9,
+              "pitchBend": 0,
+              "filterCutoff": 360
+            },
+            {
+              "id": "note-12-0-cbvny",
+              "step": 12,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.88,
+              "pitchBend": 0,
+              "filterCutoff": 390
+            }
+          ]
+        },
+        "3": {
+          "index": 3,
+          "notes": [
+            {
+              "id": "note-0-0-chv41",
+              "step": 0,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.98,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-4-0-1dh64",
+              "step": 4,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.92,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-8-0-kv9fh",
+              "step": 8,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.95,
+              "pitchBend": 0
+            }
+          ]
+        },
+        "4": {
+          "index": 4,
+          "notes": [
+            {
+              "id": "note-0-0-dvwt4",
+              "step": 0,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.98,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-4-0-o6vmg",
+              "step": 4,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.92,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-8-0-4rcg1",
+              "step": 8,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.96,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-12-0-l50vm",
+              "step": 12,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.94,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-15-0-6n1rj",
+              "step": 15,
+              "pitch": 0,
+              "duration": 1,
+              "velocity": 0.56,
+              "pitchBend": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mbh-hats",
+      "name": "Off-Beat Noise Hats",
+      "type": "drum",
+      "color": "#34d399",
+      "muted": false,
+      "solo": false,
+      "instrument": {
+        "presetId": "minimal-house-hats",
+        "waveform": "retroKit",
+        "volume": 0.72,
+        "pan": -0.14,
+        "attack": 0.001,
+        "decay": 0.1,
+        "sustain": 0.1,
+        "release": 0.04,
+        "filterCutoff": 9200,
+        "vibratoDepth": 0,
+        "vibratoSpeed": 4,
+        "arpMode": "none",
+        "echoMix": 0.06,
+        "echoTimeSeconds": 0.242,
+        "detuneCents": 0
+      },
+      "barSequence": [
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        4,
+        4,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        2,
+        0,
+        0,
+        1,
+        4,
+        4,
+        0,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "patterns": {
+        "1": {
+          "index": 1,
+          "notes": [
+            {
+              "id": "note-2-2-g0y9p",
+              "step": 2,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.68,
+              "pitchBend": 0,
+              "filterCutoff": 5400
+            },
+            {
+              "id": "note-6-2-pg1w7",
+              "step": 6,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.64,
+              "pitchBend": 0,
+              "filterCutoff": 5400
+            },
+            {
+              "id": "note-10-2-aeef6",
+              "step": 10,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.7,
+              "pitchBend": 0,
+              "filterCutoff": 5600
+            },
+            {
+              "id": "note-14-2-r0ggi",
+              "step": 14,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.66,
+              "pitchBend": 0,
+              "filterCutoff": 5600
+            }
+          ]
+        },
+        "2": {
+          "index": 2,
+          "notes": [
+            {
+              "id": "note-2-3-2o4n8",
+              "step": 2,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.8,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-6-3-l37fe",
+              "step": 6,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.76,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-10-3-3zbjf",
+              "step": 10,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.82,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-14-3-7ekrt",
+              "step": 14,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0
+            }
+          ]
+        },
+        "3": {
+          "index": 3,
+          "notes": [
+            {
+              "id": "note-2-3-84wbc",
+              "step": 2,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.82,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-6-3-jcl1b",
+              "step": 6,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-7-2-o78ai",
+              "step": 7,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.34,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-10-3-u244c",
+              "step": 10,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.84,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-14-3-cmer1",
+              "step": 14,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.8,
+              "pitchBend": 0
+            },
+            {
+              "id": "note-15-2-v8by4",
+              "step": 15,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.36,
+              "pitchBend": 0
+            }
+          ]
+        },
+        "4": {
+          "index": 4,
+          "notes": [
+            {
+              "id": "note-2-2-pnkkn",
+              "step": 2,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.62,
+              "pitchBend": 0,
+              "filterCutoff": 4200
+            },
+            {
+              "id": "note-6-2-uql3o",
+              "step": 6,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.7,
+              "pitchBend": 0,
+              "filterCutoff": 5800
+            },
+            {
+              "id": "note-10-2-r26nj",
+              "step": 10,
+              "pitch": 2,
+              "duration": 1,
+              "velocity": 0.78,
+              "pitchBend": 0,
+              "filterCutoff": 7600
+            },
+            {
+              "id": "note-14-3-wb74o",
+              "step": 14,
+              "pitch": 3,
+              "duration": 1,
+              "velocity": 0.82,
+              "pitchBend": 0,
+              "filterCutoff": 9800
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
