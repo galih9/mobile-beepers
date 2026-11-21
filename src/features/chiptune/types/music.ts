@@ -52,7 +52,8 @@ export type EditorTool =
 	| "move"
 	| "erase"
 	| "slide"
-	| "fade";
+	| "fade"
+	| "stutter";
 
 export type NoteBendStyle = "late" | "early" | "continuous";
 
@@ -94,6 +95,33 @@ export interface NoteEvent {
 	filterCutoff?: number;
 	/** Optional low-pass filter cutoff target in Hz to sweep toward across note duration */
 	filterSweepTo?: number;
+	/**
+	 * Stutter / ratchet count (1-8). The note is retriggered this many times,
+	 * evenly spaced across its duration — breakcore snare rolls and glitch stutters.
+	 * When combined with pitchBend the retriggers climb (or fall) in steps toward the bend target.
+	 */
+	ratchet?: number;
+	/**
+	 * Micro-timing nudge in steps (-0.5 to +0.5). Shifts the note slightly off the
+	 * 16th grid — negative plays early (rushing), positive plays late (laid back).
+	 * Used to humanize melodies; 0 / undefined = exactly on the grid.
+	 */
+	timingOffset?: number;
+}
+
+export interface NoteVelocityUpdate {
+	id: string;
+	velocity: number;
+}
+
+/** A named loop region of the song (e.g. "Command", "Clash", "Rush") */
+export interface SongSection {
+	id: string;
+	name: string;
+	/** First bar of the section (0-indexed, inclusive) */
+	startBar: number;
+	/** Last bar of the section (0-indexed, inclusive) */
+	endBar: number;
 }
 
 export interface NoteBatchMoveUpdate {
@@ -126,6 +154,8 @@ export interface InstrumentConfiguration {
 	detuneCents: number;
 	/** UltraBox-style Fade In / Out (-1 = full fade in, 0 = neutral, +1 = full fade out) */
 	fadeInOut?: number;
+	/** Bit-crushed overdrive amount (0 = clean, 1 = fully saturated / crushed) */
+	drive?: number;
 }
 
 export interface Channel {
@@ -157,6 +187,8 @@ export interface SongProject {
 	scale: ScaleType;
 	masterVolume: number;
 	channels: Array<Channel>;
+	/** Optional named sections — each can be looped / exported on its own */
+	sections?: Array<SongSection>;
 	updatedAt: number;
 }
 

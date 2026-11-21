@@ -27,7 +27,7 @@ describe("DemoSongBrowserDialog", () => {
 		useChiptuneStore.getState().createNewProject();
 	});
 
-	it("renders all demo songs and supports category + search filtering", () => {
+	it("renders the breakcore demos and supports category + search filtering", () => {
 		const onClose = vi.fn();
 		render(
 			<DemoSongBrowserDialog
@@ -38,25 +38,23 @@ describe("DemoSongBrowserDialog", () => {
 		);
 
 		expect(screen.getByText("Demo Song & SFX Library")).toBeTruthy();
-		expect(screen.getByText("Pocket Battle 1996")).toBeTruthy();
+		expect(screen.getByText("Breakcore Battle v1")).toBeTruthy();
+		expect(screen.getByText("Amen Overdrive 180")).toBeTruthy();
 		expect(
 			screen.getByText(`Showing ${DEMO_SONGS.length} of ${DEMO_SONGS.length}`)
 		).toBeTruthy();
 
-		// Filter by Battle & Action category
-		const battleFilter = screen.getByRole("button", {
-			name: /Battle & Action/i,
+		const breakcoreFilter = screen.getByRole("button", {
+			name: /Breakcore & Rave/i,
 		});
-		fireEvent.click(battleFilter);
-		expect(screen.getByText("Pocket Battle 1996")).toBeTruthy();
-		expect(screen.getByText("Starlight Boss Rush")).toBeTruthy();
-		expect(screen.queryByText("Cozy Pixel Town")).toBeNull();
+		fireEvent.click(breakcoreFilter);
+		expect(screen.getByText("Breakcore Battle v1")).toBeTruthy();
+		expect(screen.getByText("Amen Overdrive 180")).toBeTruthy();
 
-		// Further narrow by search query
 		const searchInput = screen.getByRole("searchbox");
-		fireEvent.change(searchInput, { target: { value: "pocket" } });
-		expect(screen.getByText("Pocket Battle 1996")).toBeTruthy();
-		expect(screen.queryByText("Starlight Boss Rush")).toBeNull();
+		fireEvent.change(searchInput, { target: { value: "overdrive" } });
+		expect(screen.getByText("Amen Overdrive 180")).toBeTruthy();
+		expect(screen.queryByText("Breakcore Battle v1")).toBeNull();
 	});
 
 	it("loads and plays a selected demo song and closes the modal", () => {
@@ -69,10 +67,10 @@ describe("DemoSongBrowserDialog", () => {
 			/>
 		);
 
-		const pocketHeading = screen.getByRole("heading", {
-			name: "Pocket Battle 1996",
+		const battleHeading = screen.getByRole("heading", {
+			name: "Breakcore Battle v1",
 		});
-		const card = pocketHeading.closest("article");
+		const card = battleHeading.closest("article");
 		expect(card).not.toBeNull();
 
 		const loadAndPlayButton = within(card as HTMLElement).getByRole("button", {
@@ -81,8 +79,8 @@ describe("DemoSongBrowserDialog", () => {
 		fireEvent.click(loadAndPlayButton);
 
 		const state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Pocket Battle 1996");
-		expect(state.song.bpm).toBe(168);
+		expect(state.song.title).toBe("Breakcore Battle v1");
+		expect(state.song.bpm).toBe(174);
 		expect(state.isPlaying).toBe(true);
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});

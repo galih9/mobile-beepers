@@ -4,6 +4,7 @@ import {
 	ArrowUturnLeftIcon,
 	ArrowUturnRightIcon,
 	BackspaceIcon,
+	BoltIcon,
 	CursorArrowRaysIcon,
 	PencilIcon,
 	SignalIcon,
@@ -13,6 +14,7 @@ import {
 import type { FunctionComponent } from "../../../common/types";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { Channel, EditorTool } from "../types/music";
+import { NoteVolumeControls } from "./NoteVolumeControls";
 
 const DURATION_OPTIONS: Array<{ label: string; steps: number }> = [
 	{ label: "1/16", steps: 1 },
@@ -115,7 +117,7 @@ export const PianoRollHeaderStrip = ({
 					</button>
 				</div>
 
-				{/* Tool Selector: Select / Draw / Move / Erase / Bend / Fade */}
+				{/* Tool Selector: Select / Draw / Move / Erase / Bend / Fade / Stutter */}
 				<div
 					aria-label="Note editing tools"
 					className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
@@ -217,6 +219,22 @@ export const PianoRollHeaderStrip = ({
 						<SignalIcon aria-hidden="true" className="size-3" />
 						<span className="hidden sm:inline">Fade</span>
 					</button>
+					<button
+						aria-pressed={activeTool === "stutter"}
+						title="Click a note to cycle Stutter / ratchet retriggers (x2, x3, x4, x6, x8). Combine with Bend for rising rolls."
+						type="button"
+						className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
+							activeTool === "stutter"
+								? "bg-fuchsia-500/25 text-fuchsia-200"
+								: "text-slate-400 hover:text-white"
+						}`}
+						onClick={(): void => {
+							onSelectTool(activeTool === "stutter" ? "draw" : "stutter");
+						}}
+					>
+						<BoltIcon aria-hidden="true" className="size-3" />
+						<span className="hidden sm:inline">Stutter</span>
+					</button>
 				</div>
 
 				{/* Note Length Selector */}
@@ -241,6 +259,9 @@ export const PianoRollHeaderStrip = ({
 						))}
 					</div>
 				)}
+
+				{/* Per-note Volume, Humanize & Snap */}
+				<NoteVolumeControls />
 
 				{/* Tablet & Desktop Transpose Controls */}
 				{activeChannel.type === "pitch" && (

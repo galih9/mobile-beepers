@@ -195,6 +195,7 @@ export const DemoSongBrowserDialog = ({
 		const counts: Record<"all" | DemoSongCategory, number> = {
 			all: DEMO_SONGS.length,
 			battle: 0,
+			breakcore: 0,
 			electronic: 0,
 			adventure: 0,
 			dungeon: 0,

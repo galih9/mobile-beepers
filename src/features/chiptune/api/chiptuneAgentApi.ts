@@ -3,9 +3,19 @@ import {
 	renderSongToMidiBytes,
 	type MidiExportOptions,
 } from "../audio/midiExporter";
+import { MAX_NOTE_RATCHET } from "../audio/noteRatchet";
 import { playPreviewNote } from "../audio/voiceSynthesizer";
-import { renderSongToWavBlob } from "../audio/wavExporter";
+import {
+	measureAudioBufferLevels,
+	renderSongToAudioBuffer,
+	renderSongToWavBlob,
+} from "../audio/wavExporter";
 import { DEMO_SONGS } from "../constants/demoSongs";
+import {
+	MAX_CHANNELS,
+	MAX_PATTERN_INDEX,
+	MAX_SONG_BARS,
+} from "../constants/limits";
 import {
 	getPresetConfigurationById,
 	INSTRUMENT_PRESETS,
@@ -26,9 +36,16 @@ import {
 	getActivePatternForChannel,
 	getNextAvailablePatternIndex,
 	getStepsPerBar,
+	clampNoteVelocity,
+	clampTimingOffset,
+	humanizeNotesInSong,
+	normalizeSongSections,
+	quantizeNotesInSong,
 	setBarPatternIndexInSong,
 	transposeChannelPattern,
 	updateChannelPatternNotes,
+	updateNotePropertiesInSong,
+	type HumanizeOptions,
 } from "../store/songHelpers";
 import type { ChiptuneStoreState } from "../store/storeTypes";
 import { useChiptuneStore } from "../store/useChiptuneStore";
@@ -48,6 +65,7 @@ import type {
 	SfxCategory,
 	SfxGeneratorArchetype,
 	SongProject,
+	SongSection,
 	StudioMode,
 } from "../types/music";
 
@@ -62,6 +80,27 @@ export interface AgentNoteInput {
 	fadeMode?: NoteFadeMode;
 	filterCutoff?: number;
 	filterSweepTo?: number;
+	/** Stutter retriggers across the note (1-8). Combine with pitchBend for stepped risers. */
+	ratchet?: number;
+	/** Micro-timing nudge in steps (-0.5 early … +0.5 late). Humanizes off the grid. */
+	timingOffset?: number;
+}
+
+export interface AgentSectionInput {
+	id?: string;
+	name: string;
+	startBar: number;
+	endBar: number;
+}
+
+export interface AgentLevelReport {
+	durationSeconds: number;
+	/** Highest absolute sample (1.0 = full scale) */
+	peak: number;
+	peakDb: number;
+	rmsDb: number;
+	/** Samples at or above full scale (clipping) */
+	clippedSamples: number;
 }
 
 export interface AgentChannelSpecification {
@@ -89,6 +128,8 @@ export interface AgentSongSpecification {
 	rootKey?: MusicalKey;
 	scale?: ScaleType;
 	masterVolume?: number;
+	/** Optional named loop regions (e.g. game-music sections) */
+	sections?: Array<AgentSectionInput>;
 	channels: Array<AgentChannelSpecification>;
 }
 
@@ -146,6 +187,9 @@ const DRUM_NAME_MAP: Record<string, number> = {
 	BLIP: 7,
 	"COIN BLIP": 7,
 	COIN: 7,
+	RIDE: 2,
+	CRASH: 3,
+	ZAP: 7,
 };
 
 const clampNumber = (value: number, min: number, max: number): number => {
@@ -216,6 +260,14 @@ const normalizeAgentNote = (
 		input.filterSweepTo !== undefined && Number.isFinite(input.filterSweepTo)
 			? clampNumber(Math.round(input.filterSweepTo), 180, 14000)
 			: undefined;
+	const ratchet =
+		input.ratchet !== undefined && Number.isFinite(input.ratchet)
+			? clampNumber(Math.round(input.ratchet), 1, MAX_NOTE_RATCHET)
+			: 1;
+	const timingOffset =
+		input.timingOffset !== undefined
+			? clampTimingOffset(input.timingOffset)
+			: 0;
 
 	return {
 		id: `note-${step}-${pitch}-${Math.random().toString(36).slice(2, 8)}`,
@@ -228,6 +280,8 @@ const normalizeAgentNote = (
 		...(input.fadeMode ? { fadeMode: input.fadeMode } : {}),
 		...(filterCutoff !== undefined ? { filterCutoff } : {}),
 		...(filterSweepTo !== undefined ? { filterSweepTo } : {}),
+		...(ratchet > 1 ? { ratchet } : {}),
+		...(timingOffset !== 0 ? { timingOffset } : {}),
 	};
 };
 
@@ -354,6 +408,45 @@ export interface ChiptuneAgentApi {
 	exportWavBlob: (loopCount?: number) => Promise<Blob>;
 	exportMidiBlob: (options?: MidiExportOptions) => Blob;
 	exportMidiBytes: (options?: MidiExportOptions) => Uint8Array;
+
+	setNoteVelocity: (
+		step: number,
+		pitchOrNote: number | string,
+		velocity: number,
+		channelIndex?: number,
+		barIndex?: number
+	) => NoteEvent | null;
+	setNoteTiming: (
+		step: number,
+		pitchOrNote: number | string,
+		timingOffset: number,
+		channelIndex?: number,
+		barIndex?: number
+	) => NoteEvent | null;
+	scalePatternVelocity: (
+		factor: number,
+		channelIndex?: number,
+		barIndex?: number
+	) => Array<NoteEvent>;
+	humanizePattern: (
+		options?: HumanizeOptions,
+		channelIndex?: number,
+		barIndex?: number
+	) => Array<NoteEvent>;
+	quantizePattern: (
+		channelIndex?: number,
+		barIndex?: number
+	) => Array<NoteEvent>;
+	listSections: () => Array<SongSection>;
+	setSections: (sections: Array<AgentSectionInput>) => Array<SongSection>;
+	loopSection: (
+		nameOrId: string
+	) => { loopStartBar: number; loopEndBar: number } | null;
+	exportSectionWav: (nameOrId: string, loopCount?: number) => Promise<Blob>;
+	measureLevels: (options?: {
+		section?: string;
+		loopCount?: number;
+	}) => Promise<AgentLevelReport>;
 }
 
 const getValidatedChannelAndBar = (
@@ -374,6 +467,67 @@ const getValidatedChannelAndBar = (
 	return { state, targetChannel, targetBar };
 };
 
+const findSongSection = (
+	song: SongProject,
+	nameOrId: string
+): SongSection | undefined => {
+	const target = nameOrId.trim().toLowerCase();
+	return song.sections?.find(
+		(section) =>
+			section.id === nameOrId || section.name.trim().toLowerCase() === target
+	);
+};
+
+const getPatternNotesAt = (
+	channelIndex: number,
+	barIndex: number
+): Array<NoteEvent> => {
+	const channel = useChiptuneStore.getState().song.channels[channelIndex];
+	const patternIndex = channel?.barSequence[barIndex] ?? 0;
+	return structuredClone(channel?.patterns[String(patternIndex)]?.notes ?? []);
+};
+
+/** Sets one property (by note covering `step` at `pitch`) via the shared helper. */
+const updateNoteAt = (
+	step: number,
+	pitchOrNote: number | string,
+	update: { velocity?: number; timingOffset?: number },
+	channelIndex?: number,
+	barIndex?: number
+): NoteEvent | null => {
+	const { state, targetChannel, targetBar } = getValidatedChannelAndBar(
+		channelIndex,
+		barIndex
+	);
+	const channel = state.song.channels[targetChannel];
+	if (!channel) {
+		return null;
+	}
+	const resolvedPitch = resolvePitchValue(pitchOrNote, channel.type);
+	const target = getPatternNotesAt(targetChannel, targetBar).find(
+		(note) =>
+			note.pitch === resolvedPitch &&
+			step >= note.step &&
+			step < note.step + note.duration
+	);
+	if (!target) {
+		return null;
+	}
+	useChiptuneStore.setState((currentState) => ({
+		song: updateNotePropertiesInSong(
+			currentState.song,
+			targetChannel,
+			targetBar,
+			[{ id: target.id, ...update }]
+		),
+	}));
+	return (
+		getPatternNotesAt(targetChannel, targetBar).find(
+			(note) => note.id === target.id
+		) ?? null
+	);
+};
+
 export const chiptuneAgentApi: ChiptuneAgentApi = {
 	getHelp: (): AgentApiHelp => ({
 		globalNames: ["window.chiptuneApi", "window.ultrabeepApi"],
@@ -387,10 +541,30 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 				"Set all notes for a given channelIndex and barIndex (creates/updates pattern automatically).",
 			setPatternNotes:
 				"Set all notes for a reusable pattern slot (patternIndex >= 1) on a channel.",
-			setBarPattern:
-				"Assign a pattern index (0 = silent, 1..32 = pattern) to a bar slot.",
+			setBarPattern: `Assign a pattern index (0 = silent, 1..${MAX_PATTERN_INDEX} = pattern) to a bar slot.`,
 			addNote:
 				"Add or replace a single note using numeric MIDI pitch or note name string.",
+			noteOptions:
+				"Every note accepts step, note/pitch, duration, velocity (0.1-1 per-note volume), pitchBend (semitones; also re-pitches drum hits), bendStyle, fadeMode, filterCutoff, filterSweepTo, ratchet (1-8 stutter retriggers; with pitchBend it becomes a stepped riser) and timingOffset (-0.5..+0.5 steps off the grid; negative = early).",
+			setNoteVelocity:
+				"setNoteVelocity(step, pitchOrNote, velocity, channelIndex?, barIndex?) sets one note's volume (0.1-1).",
+			setNoteTiming:
+				"setNoteTiming(step, pitchOrNote, timingOffset, channelIndex?, barIndex?) nudges one note off the grid (-0.5..+0.5 steps).",
+			scalePatternVelocity:
+				"scalePatternVelocity(factor, channelIndex?, barIndex?) multiplies every note volume in a pattern (e.g. 0.8 = quieter, keeps accents).",
+			humanizePattern:
+				"humanizePattern({ velocityAmount?, timingAmount?, noteIds?, seed? }, channelIndex?, barIndex?) adds small random volume/timing variation (defaults ±0.08).",
+			quantizePattern:
+				"quantizePattern(channelIndex?, barIndex?) removes timing nudges (snap to grid).",
+			setSections:
+				"setSections([{ name, startBar, endBar }]) defines named loop regions (0-indexed, inclusive) — e.g. game-music sections. composeSong also accepts sections.",
+			loopSection: "loopSection(nameOrId) sets the loop range to a section.",
+			exportSectionWav:
+				"exportSectionWav(nameOrId, loopCount?) renders one section as a seamless loop WAV without changing the loop range.",
+			measureLevels:
+				"measureLevels({ section?, loopCount? }) renders offline and returns peak, peakDb, rmsDb and clipped sample count.",
+			instrumentDrive:
+				"updateChannelInstrument(channelIndex, { drive: 0..1 }) adds bit-crushed overdrive — ~0.25 grit, ~0.6 reese crunch, 0.85+ gabber distortion.",
 			play: "Start live playback.",
 			stop: "Stop live playback.",
 			setStudioMode:
@@ -703,7 +877,8 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 			}
 			const normalizedSequence = Array.from(
 				{ length: state.song.totalBars },
-				(_, barIndex) => clampNumber(barSequence[barIndex] ?? 0, 0, 32)
+				(_, barIndex) =>
+					clampNumber(barSequence[barIndex] ?? 0, 0, MAX_PATTERN_INDEX)
 			);
 			const nextPatterns: Record<string, Pattern> = { ...channel.patterns };
 			for (const patternNumber of normalizedSequence) {
@@ -842,7 +1017,11 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		if (!channel) {
 			throw new Error(`Channel ${channelIndex} does not exist.`);
 		}
-		const clampedPatternIndex = clampNumber(Math.round(patternIndex), 1, 32);
+		const clampedPatternIndex = clampNumber(
+			Math.round(patternIndex),
+			1,
+			MAX_PATTERN_INDEX
+		);
 		const stepsPerBar = getStepsPerBar(state.song);
 		const normalizedNotes = notes.map((noteInput) =>
 			normalizeAgentNote(noteInput, channel.type, stepsPerBar)
@@ -966,7 +1145,7 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 				specification.totalBars ?? Math.max(1, maxSequenceLength || 8)
 			),
 			1,
-			32
+			MAX_SONG_BARS
 		);
 		const loopStartBar = clampNumber(
 			Math.round(specification.loopStartBar ?? 0),
@@ -980,7 +1159,7 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		);
 
 		const channels: Array<Channel> = specification.channels
-			.slice(0, 8)
+			.slice(0, MAX_CHANNELS)
 			.map((channelSpecification, index) => {
 				const preset = channelSpecification.presetId
 					? getPresetConfigurationById(channelSpecification.presetId)
@@ -998,7 +1177,7 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 								(barIndex === 0 ? 1 : 0)
 						),
 						0,
-						32
+						MAX_PATTERN_INDEX
 					)
 				);
 
@@ -1070,6 +1249,11 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 			scale: specification.scale ?? "minor",
 			masterVolume: clampNumber(specification.masterVolume ?? 0.85, 0.05, 1),
 			channels,
+			...(specification.sections && specification.sections.length > 0
+				? {
+						sections: normalizeSongSections(specification.sections, totalBars),
+					}
+				: {}),
 			updatedAt: Date.now(),
 		};
 
@@ -1099,6 +1283,136 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 
 	exportMidiBlob: (options?: MidiExportOptions): Blob => {
 		return renderSongToMidiBlob(useChiptuneStore.getState().song, options);
+	},
+
+	setNoteVelocity: (
+		step,
+		pitchOrNote,
+		velocity,
+		channelIndex,
+		barIndex
+	): NoteEvent | null =>
+		updateNoteAt(
+			step,
+			pitchOrNote,
+			{ velocity: clampNoteVelocity(velocity) },
+			channelIndex,
+			barIndex
+		),
+
+	setNoteTiming: (
+		step,
+		pitchOrNote,
+		timingOffset,
+		channelIndex,
+		barIndex
+	): NoteEvent | null =>
+		updateNoteAt(
+			step,
+			pitchOrNote,
+			{ timingOffset: clampTimingOffset(timingOffset) },
+			channelIndex,
+			barIndex
+		),
+
+	scalePatternVelocity: (factor, channelIndex, barIndex): Array<NoteEvent> => {
+		const { targetChannel, targetBar } = getValidatedChannelAndBar(
+			channelIndex,
+			barIndex
+		);
+		const safeFactor = Number.isFinite(factor) ? Math.max(0, factor) : 1;
+		useChiptuneStore.setState((currentState) => ({
+			song: updateNotePropertiesInSong(
+				currentState.song,
+				targetChannel,
+				targetBar,
+				getPatternNotesAt(targetChannel, targetBar).map((note) => ({
+					id: note.id,
+					velocity: note.velocity * safeFactor,
+				}))
+			),
+		}));
+		return getPatternNotesAt(targetChannel, targetBar);
+	},
+
+	humanizePattern: (options, channelIndex, barIndex): Array<NoteEvent> => {
+		const { targetChannel, targetBar } = getValidatedChannelAndBar(
+			channelIndex,
+			barIndex
+		);
+		useChiptuneStore.setState((currentState) => ({
+			song: humanizeNotesInSong(
+				currentState.song,
+				targetChannel,
+				targetBar,
+				options
+			),
+		}));
+		return getPatternNotesAt(targetChannel, targetBar);
+	},
+
+	quantizePattern: (channelIndex, barIndex): Array<NoteEvent> => {
+		const { targetChannel, targetBar } = getValidatedChannelAndBar(
+			channelIndex,
+			barIndex
+		);
+		useChiptuneStore.setState((currentState) => ({
+			song: quantizeNotesInSong(currentState.song, targetChannel, targetBar),
+		}));
+		return getPatternNotesAt(targetChannel, targetBar);
+	},
+
+	listSections: (): Array<SongSection> =>
+		structuredClone(useChiptuneStore.getState().song.sections ?? []),
+
+	setSections: (sections): Array<SongSection> => {
+		useChiptuneStore.getState().setSongSections(sections);
+		return structuredClone(useChiptuneStore.getState().song.sections ?? []);
+	},
+
+	loopSection: (
+		nameOrId
+	): { loopStartBar: number; loopEndBar: number } | null => {
+		const section = findSongSection(useChiptuneStore.getState().song, nameOrId);
+		if (!section) {
+			return null;
+		}
+		useChiptuneStore.getState().loopSection(section.id);
+		const updatedSong = useChiptuneStore.getState().song;
+		return {
+			loopStartBar: updatedSong.loopStartBar,
+			loopEndBar: updatedSong.loopEndBar,
+		};
+	},
+
+	exportSectionWav: async (nameOrId, loopCount = 1): Promise<Blob> => {
+		const song = useChiptuneStore.getState().song;
+		const section = findSongSection(song, nameOrId);
+		if (!section) {
+			throw new Error(`Section "${nameOrId}" does not exist.`);
+		}
+		return renderSongToWavBlob(
+			{ ...song, loopStartBar: section.startBar, loopEndBar: section.endBar },
+			loopCount
+		);
+	},
+
+	measureLevels: async (options): Promise<AgentLevelReport> => {
+		const song = useChiptuneStore.getState().song;
+		const section = options?.section
+			? findSongSection(song, options.section)
+			: undefined;
+		if (options?.section && !section) {
+			throw new Error(`Section "${options.section}" does not exist.`);
+		}
+		const renderTarget = section
+			? { ...song, loopStartBar: section.startBar, loopEndBar: section.endBar }
+			: song;
+		const audioBuffer = await renderSongToAudioBuffer(
+			renderTarget,
+			options?.loopCount ?? 1
+		);
+		return measureAudioBufferLevels(audioBuffer);
 	},
 
 	exportMidiBytes: (options?: MidiExportOptions): Uint8Array => {

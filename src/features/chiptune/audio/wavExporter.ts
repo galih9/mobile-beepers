@@ -56,10 +56,57 @@ const encodeAudioBufferToWav = (audioBuffer: AudioBuffer): Blob => {
 	return new Blob([buffer], { type: "audio/wav" });
 };
 
-export const renderSongToWavBlob = async (
+export interface AudioLevelReport {
+	durationSeconds: number;
+	peak: number;
+	peakDb: number;
+	rmsDb: number;
+	clippedSamples: number;
+}
+
+const toDecibels = (value: number): number =>
+	value > 0 ? Math.round(20 * Math.log10(value) * 10) / 10 : -120;
+
+/** Peak / RMS / clipping summary of a rendered buffer (all channels). */
+export const measureAudioBufferLevels = (
+	audioBuffer: AudioBuffer
+): AudioLevelReport => {
+	let peak = 0;
+	let sumOfSquares = 0;
+	let clippedSamples = 0;
+	let sampleCount = 0;
+	for (
+		let channelIndex = 0;
+		channelIndex < audioBuffer.numberOfChannels;
+		channelIndex += 1
+	) {
+		const data = audioBuffer.getChannelData(channelIndex);
+		for (const sample of data) {
+			const magnitude = Math.abs(sample);
+			if (magnitude > peak) {
+				peak = magnitude;
+			}
+			if (magnitude >= 0.999) {
+				clippedSamples += 1;
+			}
+			sumOfSquares += sample * sample;
+			sampleCount += 1;
+		}
+	}
+	const rms = sampleCount > 0 ? Math.sqrt(sumOfSquares / sampleCount) : 0;
+	return {
+		durationSeconds: Math.round(audioBuffer.duration * 100) / 100,
+		peak: Math.round(peak * 1000) / 1000,
+		peakDb: toDecibels(peak),
+		rmsDb: toDecibels(rms),
+		clippedSamples,
+	};
+};
+
+export const renderSongToAudioBuffer = async (
 	song: SongProject,
 	loopCount = 1
-): Promise<Blob> => {
+): Promise<AudioBuffer> => {
 	const sampleRate = 44100;
 	const stepsPerBar = song.beatsPerBar * song.stepsPerBeat;
 	const stepDurationSeconds = 60 / song.bpm / song.stepsPerBeat;
@@ -133,8 +180,14 @@ export const renderSongToWavBlob = async (
 		}
 	}
 
-	const renderedBuffer = await offlineContext.startRendering();
-	return encodeAudioBufferToWav(renderedBuffer);
+	return offlineContext.startRendering();
+};
+
+export const renderSongToWavBlob = async (
+	song: SongProject,
+	loopCount = 1
+): Promise<Blob> => {
+	return encodeAudioBufferToWav(await renderSongToAudioBuffer(song, loopCount));
 };
 
 export const downloadBlobAsFile = (blob: Blob, filename: string): void => {

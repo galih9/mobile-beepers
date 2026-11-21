@@ -20,7 +20,7 @@ export const SliderControl = ({
 	max,
 	step,
 	formatValue,
-	accentColor = "#00c7ff",
+	accentColor = "var(--accent)",
 	inline = false,
 	onChange,
 }: SliderControlProps): FunctionComponent => {

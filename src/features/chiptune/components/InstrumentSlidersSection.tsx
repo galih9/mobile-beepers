@@ -342,6 +342,22 @@ export const InstrumentSlidersSection = ({
 					}}
 				/>
 
+				<SliderControl
+					inline
+					accentColor={activeChannel.color}
+					label="Drive / Crush"
+					max={1}
+					min={0}
+					step={0.05}
+					value={instrument.drive ?? 0}
+					formatValue={(value): string =>
+						value < 0.05 ? "Clean" : `${Math.round(value * 100)}%`
+					}
+					onChange={(nextValue): void => {
+						onUpdateInstrument(selectedChannelIndex, { drive: nextValue });
+					}}
+				/>
+
 				{activeChannel.type === "pitch" && (
 					<>
 						<SliderControl

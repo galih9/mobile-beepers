@@ -13,6 +13,8 @@ import { useChiptuneStore } from "../store/useChiptuneStore";
 import { DND_ITEM_TYPES, type InstrumentPresetDragItem } from "./dndTypes";
 import { KonvaPianoRollStage } from "./KonvaPianoRollStage";
 import { PianoRollHeaderStrip } from "./PianoRollHeaderStrip";
+import { VelocityLane } from "./VelocityLane";
+import { VELOCITY_LANE_HEIGHT } from "./velocityLaneMath";
 
 export const PianoRollEditor = (): FunctionComponent => {
 	const song = useChiptuneStore((state) => state.song);
@@ -23,6 +25,17 @@ export const PianoRollEditor = (): FunctionComponent => {
 	const activeTool = useChiptuneStore((state) => state.activeTool);
 	const defaultNoteDuration = useChiptuneStore(
 		(state) => state.defaultNoteDuration
+	);
+	const defaultNoteVelocity = useChiptuneStore(
+		(state) => state.defaultNoteVelocity
+	);
+	const showVelocityLane = useChiptuneStore((state) => state.showVelocityLane);
+	const activeWorkspaceTab = useChiptuneStore(
+		(state) => state.activeWorkspaceTab
+	);
+	const selectedNoteIds = useChiptuneStore((state) => state.selectedNoteIds);
+	const updateNoteProperties = useChiptuneStore(
+		(state) => state.updateNoteProperties
 	);
 	const pianoRollZoom = useChiptuneStore((state) => state.pianoRollZoom);
 	const scaleLockOnly = useChiptuneStore((state) => state.scaleLockOnly);
@@ -48,6 +61,9 @@ export const PianoRollEditor = (): FunctionComponent => {
 		(state) => state.setNotePitchBendAt
 	);
 	const cycleNoteFadeAt = useChiptuneStore((state) => state.cycleNoteFadeAt);
+	const cycleNoteRatchetAt = useChiptuneStore(
+		(state) => state.cycleNoteRatchetAt
+	);
 	const transposeCurrentPattern = useChiptuneStore(
 		(state) => state.transposeCurrentPattern
 	);
@@ -62,6 +78,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 	);
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const velocityLaneScrollRef = useRef<HTMLDivElement | null>(null);
 	const octaveSliderRef = useRef<HTMLInputElement | null>(null);
 
 	const [containerWidth, setContainerWidth] = useState(320);
@@ -144,6 +161,11 @@ export const PianoRollEditor = (): FunctionComponent => {
 					? 20
 					: 18;
 	const keyWidth = isLargeViewport ? 56 : 42;
+	// Shorter volume lane on phones so the note grid keeps its room
+	const velocityLaneHeight = isLargeViewport ? VELOCITY_LANE_HEIGHT : 40;
+	// Phone split view is too short for the lane; it shows in the Piano tab there
+	const isVelocityLaneVisible =
+		showVelocityLane && (isLargeViewport || activeWorkspaceTab === "piano");
 	const baseStepWidth = Math.max(
 		24,
 		Math.floor((containerWidth - keyWidth) / stepsPerBar)
@@ -257,6 +279,11 @@ export const PianoRollEditor = (): FunctionComponent => {
 					role="region"
 					tabIndex={0}
 					onScroll={(event): void => {
+						// Keep the note volume lane aligned with the grid's steps
+						if (velocityLaneScrollRef.current) {
+							velocityLaneScrollRef.current.scrollLeft =
+								event.currentTarget.scrollLeft;
+						}
 						if (octaveSliderRef.current) {
 							octaveSliderRef.current.value = String(
 								Math.max(0, maxScrollTop - event.currentTarget.scrollTop)
@@ -302,6 +329,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 							activeNotes={activeNotes}
 							activeTool={activeTool}
 							defaultNoteDuration={defaultNoteDuration}
+							defaultNoteVelocity={defaultNoteVelocity}
 							ghostChannels={ghostChannels}
 							isPlayingThisBar={isPlaying && playbackBar === selectedBarIndex}
 							playbackStep={playbackStep}
@@ -313,6 +341,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 							stepsPerBeat={song.stepsPerBeat}
 							onAddOrReplaceNote={addOrReplaceNote}
 							onCycleNoteFade={cycleNoteFadeAt}
+							onCycleNoteRatchet={cycleNoteRatchetAt}
 							onCyclePitchBend={cycleNotePitchBend}
 							onMoveNote={moveNoteAt}
 							onMoveNotesBatch={moveNotesBatch}
@@ -373,6 +402,52 @@ export const PianoRollEditor = (): FunctionComponent => {
 					</button>
 				</div>
 			</div>
+
+			{/* Per-note Volume Lane (aligned with the grid's steps) */}
+			{isVelocityLaneVisible && (
+				<div
+					className="flex shrink-0 border-t border-slate-800 bg-slate-950"
+					style={{ height: `${velocityLaneHeight}px` }}
+				>
+					<div
+						className="flex shrink-0 flex-col items-center justify-center border-r border-slate-800 font-mono text-[9px] font-bold text-emerald-300"
+						style={{ width: `${keyWidth}px` }}
+						title="Note volume. Drag to paint volumes; Shift-drag to raise or lower them together. With notes selected, only those are edited."
+					>
+						<span>VOL</span>
+						{selectedNoteIds.length > 0 && (
+							<span className="text-[8px] text-white">SEL</span>
+						)}
+					</div>
+					<div
+						ref={velocityLaneScrollRef}
+						className="no-scrollbar min-w-0 flex-1 overflow-hidden"
+					>
+						<VelocityLane
+							color={activeChannel.color}
+							height={velocityLaneHeight}
+							notes={activeNotes}
+							selectedNoteIds={selectedNoteIds}
+							stepWidth={stepWidth}
+							stepsPerBar={stepsPerBar}
+							stepsPerBeat={song.stepsPerBeat}
+							onPreview={(note, velocity): void => {
+								const stepSeconds = 60 / song.bpm / song.stepsPerBeat;
+								playPreviewNote(
+									note.pitch,
+									activeChannel,
+									{ ...note, velocity },
+									stepSeconds
+								);
+							}}
+							onUpdate={(updates): void => {
+								updateNoteProperties(updates, "note-velocity-lane");
+							}}
+						/>
+					</div>
+					<div className="w-7 shrink-0 border-l border-slate-800 bg-slate-900 md:w-8" />
+				</div>
+			)}
 		</section>
 	);
 };

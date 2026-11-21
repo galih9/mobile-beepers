@@ -1,4 +1,5 @@
 import type { FunctionComponent } from "../../../common/types";
+import { MAX_SONG_BARS } from "../constants/limits";
 import { MUSICAL_KEYS, SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
 import type { MusicalKey, ScaleType, SongProject } from "../types/music";
 import { SliderControl } from "./SliderControl";
@@ -110,7 +111,7 @@ export const SongSlidersSection = ({
 			<SliderControl
 				inline
 				label="Song Length"
-				max={32}
+				max={MAX_SONG_BARS}
 				min={1}
 				step={1}
 				value={song.totalBars}

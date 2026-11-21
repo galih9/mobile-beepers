@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { createBlankSongProject, DEMO_SONGS } from "../constants/demoSongs";
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
+import { MAX_CHANNELS, MAX_SONG_BARS } from "../constants/limits";
+import { DEFAULT_THEME_MODE, isThemeMode } from "../constants/themes";
 import {
 	createBlankSfxProject,
 	generateProceduralSfxNotes,
@@ -17,27 +19,35 @@ import type {
 	SongProject,
 } from "../types/music";
 import {
+	clampNoteVelocity,
 	clearBarsInSong,
 	clonePatternToBarInSong,
 	copyBarPatternSlotInSong,
 	copyBarsFromSong,
 	createNewChannel,
 	cycleNoteFadeInSong,
+	cycleNoteRatchetInSong,
 	cycleNotePitchBendInSong,
 	duplicateBarsInSong,
 	generateRiffInChannelPattern,
+	getNextSectionName,
 	getStepsPerBar,
+	humanizeNotesInSong,
 	moveBarsInSong,
 	moveNoteInSong,
 	moveNotesBatchInSong,
 	normalizeBarSelection,
+	normalizeSongSections,
 	pasteBarsIntoSong,
+	quantizeNotesInSong,
 	reorderChannelsInSong,
 	setBarPatternIndexInSong,
 	setNotePitchBendInSong,
+	setSongSections,
 	shiftBarsInSong,
 	transposeChannelPattern,
 	updateChannelPatternNotes,
+	updateNotePropertiesInSong,
 } from "./songHelpers";
 import type { ChiptuneStoreState, PersistedChiptuneState } from "./storeTypes";
 
@@ -122,6 +132,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			activeWorkspaceTab: "all",
 			activeTool: "draw",
 			defaultNoteDuration: 2,
+			defaultNoteVelocity: 0.9,
+			showVelocityLane: true,
+			selectedNoteIds: [],
+			themeMode: DEFAULT_THEME_MODE,
+			paneLayout: { asideWidth: null, matrixHeight: null },
+			showNoteVelocityLabels: false,
 			pianoRollZoom: 1,
 			scaleLockOnly: true,
 			showGhostNotes: true,
@@ -145,6 +161,30 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 			setDefaultNoteDuration: (duration): void => {
 				set({ defaultNoteDuration: duration });
+			},
+			setDefaultNoteVelocity: (velocity): void => {
+				set({ defaultNoteVelocity: clampNoteVelocity(velocity) });
+			},
+			toggleVelocityLane: (): void => {
+				set((state) => ({ showVelocityLane: !state.showVelocityLane }));
+			},
+			setSelectedNoteIds: (noteIds): void => {
+				set({ selectedNoteIds: Array.from(new Set(noteIds)) });
+			},
+			setPaneLayout: (updates): void => {
+				set((state) => ({
+					paneLayout: { ...state.paneLayout, ...updates },
+				}));
+			},
+			toggleNoteVelocityLabels: (): void => {
+				set((state) => ({
+					showNoteVelocityLabels: !state.showNoteVelocityLabels,
+				}));
+			},
+			setThemeMode: (themeMode): void => {
+				set({
+					themeMode: isThemeMode(themeMode) ? themeMode : DEFAULT_THEME_MODE,
+				});
 			},
 			setPianoRollZoom: (zoom): void => {
 				const clamped = Math.max(0.25, Math.min(2.5, zoom));
@@ -183,6 +223,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						0,
 						Math.min(state.song.channels.length - 1, index)
 					),
+					selectedNoteIds: [],
 				}));
 			},
 			setSelectedBarIndex: (index): void => {
@@ -191,6 +232,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						0,
 						Math.min(state.song.totalBars - 1, index)
 					),
+					selectedNoteIds: [],
 				}));
 			},
 			setIsPlaying: (playing): void => {
@@ -502,7 +544,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			setTotalBars: (totalBars): void => {
 				set((state) => {
 					const history = createHistoryRecord(state);
-					const clampedBars = Math.max(1, Math.min(32, totalBars));
+					const clampedBars = Math.max(1, Math.min(MAX_SONG_BARS, totalBars));
 					const nextLoopEnd =
 						state.studioMode === "sfx"
 							? clampedBars - 1
@@ -528,6 +570,16 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 							totalBars: clampedBars,
 							loopStartBar: nextLoopStart,
 							loopEndBar: nextLoopEnd,
+							...(state.song.sections
+								? {
+										sections: normalizeSongSections(
+											state.song.sections.filter(
+												(section) => section.startBar < clampedBars
+											),
+											clampedBars
+										),
+									}
+								: {}),
 							channels: updatedChannels,
 							updatedAt: Date.now(),
 						},
@@ -557,9 +609,91 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			setSongSections: (sections): void => {
+				set((state) => ({
+					...createHistoryRecord(state),
+					song: setSongSections(state.song, sections),
+				}));
+			},
+
+			addSectionFromLoop: (name): void => {
+				set((state) => {
+					const song = state.song;
+					const startBar = song.loopStartBar ?? 0;
+					const endBar = song.loopEndBar ?? song.totalBars - 1;
+					const existing = song.sections ?? [];
+					if (
+						existing.some(
+							(section) =>
+								section.startBar === startBar && section.endBar === endBar
+						)
+					) {
+						return state;
+					}
+					return {
+						...createHistoryRecord(state),
+						song: setSongSections(song, [
+							...existing,
+							{
+								id: `section-${Date.now()}`,
+								name: name?.trim() || getNextSectionName(song),
+								startBar,
+								endBar,
+							},
+						]),
+					};
+				});
+			},
+
+			renameSection: (sectionId, name): void => {
+				set((state) => ({
+					...createHistoryRecord(state),
+					song: setSongSections(
+						state.song,
+						(state.song.sections ?? []).map((section) =>
+							section.id === sectionId ? { ...section, name } : section
+						)
+					),
+				}));
+			},
+
+			removeSection: (sectionId): void => {
+				set((state) => ({
+					...createHistoryRecord(state),
+					song: setSongSections(
+						state.song,
+						(state.song.sections ?? []).filter(
+							(section) => section.id !== sectionId
+						)
+					),
+				}));
+			},
+
+			loopSection: (sectionId): void => {
+				set((state) => {
+					const section = state.song.sections?.find(
+						(candidate) => candidate.id === sectionId
+					);
+					if (!section) {
+						return state;
+					}
+					return {
+						...createHistoryRecord(state, "loop-range"),
+						song: {
+							...state.song,
+							loopStartBar: section.startBar,
+							loopEndBar: section.endBar,
+							updatedAt: Date.now(),
+						},
+						selectedBarIndex: section.startBar,
+						selectedNoteIds: [],
+					};
+				});
+			},
+
 			addChannel: (channelType): void => {
 				set((state) => {
-					if (state.song.channels.length >= 8) {
+					if (state.song.channels.length >= MAX_CHANNELS) {
 						return state;
 					}
 					const history = createHistoryRecord(state);
@@ -863,6 +997,68 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			cycleNoteRatchetAt: (step, pitch): void => {
+				set((state) => {
+					const history = createHistoryRecord(state);
+					return {
+						...history,
+						song: cycleNoteRatchetInSong(
+							state.song,
+							state.selectedChannelIndex,
+							state.selectedBarIndex,
+							step,
+							pitch
+						),
+					};
+				});
+			},
+
+			updateNoteProperties: (updates, historyGroupKey): void => {
+				if (updates.length === 0) {
+					return;
+				}
+				set((state) => ({
+					...createHistoryRecord(state, historyGroupKey),
+					song: updateNotePropertiesInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						updates
+					),
+				}));
+			},
+
+			humanizeCurrentPattern: (options): void => {
+				set((state) => ({
+					...createHistoryRecord(state),
+					song: humanizeNotesInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						{
+							...options,
+							noteIds:
+								options?.noteIds ??
+								(state.selectedNoteIds.length > 0
+									? state.selectedNoteIds
+									: undefined),
+						}
+					),
+				}));
+			},
+
+			quantizeCurrentPattern: (): void => {
+				set((state) => ({
+					...createHistoryRecord(state),
+					song: quantizeNotesInSong(
+						state.song,
+						state.selectedChannelIndex,
+						state.selectedBarIndex,
+						state.selectedNoteIds.length > 0 ? state.selectedNoteIds : undefined
+					),
+				}));
+			},
+
 			cycleNoteFadeAt: (step, pitch): void => {
 				set((state) => {
 					const history = createHistoryRecord(state);
@@ -1113,6 +1309,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						scaleLockOnly: true,
 						selectedChannelIndex: 0,
 						selectedBarIndex: 0,
+						selectedNoteIds: [],
 						playbackBar: 0,
 						playbackStep: 0,
 						isPlaying: false,
@@ -1145,6 +1342,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					song: cloneSongProject(project),
 					selectedChannelIndex: 0,
 					selectedBarIndex: 0,
+					selectedNoteIds: [],
 					playbackBar: 0,
 					playbackStep: 0,
 					isPlaying: false,
@@ -1215,6 +1413,9 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					activeWorkspaceTab: "all",
 					activeTool: "draw",
 					defaultNoteDuration: 2,
+					defaultNoteVelocity: 0.9,
+					showVelocityLane: true,
+					selectedNoteIds: [],
 					pianoRollZoom: 1,
 					scaleLockOnly: true,
 					showGhostNotes: true,
@@ -1243,6 +1444,11 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				scaleLockOnly: state.scaleLockOnly,
 				showGhostNotes: state.showGhostNotes,
 				defaultNoteDuration: state.defaultNoteDuration,
+				defaultNoteVelocity: state.defaultNoteVelocity,
+				showVelocityLane: state.showVelocityLane,
+				themeMode: state.themeMode,
+				paneLayout: state.paneLayout,
+				showNoteVelocityLabels: state.showNoteVelocityLabels,
 				followPlayhead: state.followPlayhead,
 			}),
 			onRehydrateStorage:
@@ -1261,9 +1467,4 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 	)
 );
 
-export type {
-	BarMatrixSelection,
-	CopiedBarsClipboard,
-	MusicalKey,
-	ScaleType,
-};
+export type { BarMatrixSelection, CopiedBarsClipboard, MusicalKey, ScaleType };

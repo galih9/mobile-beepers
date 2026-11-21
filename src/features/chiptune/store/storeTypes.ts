@@ -12,8 +12,17 @@ import type {
 	NoteEvent,
 	SfxGeneratorArchetype,
 	SongProject,
+	SongSection,
 	StudioMode,
 } from "../types/music";
+import type { ThemeMode } from "../constants/themes";
+import type { HumanizeOptions, NotePropertyUpdate } from "./songHelpers";
+
+/** User-resized pane sizes in px (null = default responsive size) */
+export interface PaneLayout {
+	asideWidth: number | null;
+	matrixHeight: number | null;
+}
 
 export interface PersistedChiptuneState {
 	studioMode?: StudioMode;
@@ -24,6 +33,11 @@ export interface PersistedChiptuneState {
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
 	defaultNoteDuration: number;
+	defaultNoteVelocity?: number;
+	showVelocityLane?: boolean;
+	themeMode?: ThemeMode;
+	paneLayout?: PaneLayout;
+	showNoteVelocityLabels?: boolean;
 	followPlayhead: boolean;
 }
 
@@ -38,6 +52,18 @@ export interface ChiptuneStoreState {
 	activeWorkspaceTab: MobileWorkspaceTab;
 	activeTool: EditorTool;
 	defaultNoteDuration: number;
+	/** Volume (velocity 0.1–1) given to newly drawn notes */
+	defaultNoteVelocity: number;
+	/** Whether the per-note volume lane is shown under the piano roll */
+	showVelocityLane: boolean;
+	/** Ids of notes selected in the piano roll (current pattern) */
+	selectedNoteIds: Array<string>;
+	/** Studio colour theme (kept across resets) */
+	themeMode: ThemeMode;
+	/** Resized pane sizes (kept across resets) */
+	paneLayout: PaneLayout;
+	/** Print each note's volume (%) on the note in the piano roll */
+	showNoteVelocityLabels: boolean;
 	pianoRollZoom: number;
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
@@ -74,6 +100,12 @@ export interface ChiptuneStoreState {
 	setActiveWorkspaceTab: (tab: MobileWorkspaceTab) => void;
 	setActiveTool: (tool: EditorTool) => void;
 	setDefaultNoteDuration: (duration: number) => void;
+	setDefaultNoteVelocity: (velocity: number) => void;
+	toggleVelocityLane: () => void;
+	setSelectedNoteIds: (noteIds: Array<string>) => void;
+	setThemeMode: (themeMode: ThemeMode) => void;
+	setPaneLayout: (updates: Partial<PaneLayout>) => void;
+	toggleNoteVelocityLabels: () => void;
 	setPianoRollZoom: (zoom: number) => void;
 	toggleScaleLockOnly: () => void;
 	toggleShowGhostNotes: () => void;
@@ -95,6 +127,13 @@ export interface ChiptuneStoreState {
 	) => void;
 	setTotalBars: (totalBars: number) => void;
 	setLoopRange: (loopStartBar: number, loopEndBar: number) => void;
+	setSongSections: (sections: Array<Partial<SongSection>>) => void;
+	/** Save the current loop range as a new named section */
+	addSectionFromLoop: (name?: string) => void;
+	renameSection: (sectionId: string, name: string) => void;
+	removeSection: (sectionId: string) => void;
+	/** Set the loop range to a section's bars */
+	loopSection: (sectionId: string) => void;
 	addChannel: (channelType: ChannelType) => void;
 	removeChannel: (channelIndex: number) => void;
 	reorderChannels: (fromIndex: number, toIndex: number) => void;
@@ -134,6 +173,16 @@ export interface ChiptuneStoreState {
 		bendStyle?: NoteBendStyle
 	) => void;
 	cycleNoteFadeAt: (step: number, pitch: number) => void;
+	cycleNoteRatchetAt: (step: number, pitch: number) => void;
+	/** Set velocity / timing offset of notes (by id) in the selected pattern */
+	updateNoteProperties: (
+		updates: Array<NotePropertyUpdate>,
+		historyGroupKey?: string
+	) => void;
+	/** Humanize the selected notes (or the whole pattern when none selected) */
+	humanizeCurrentPattern: (options?: HumanizeOptions) => void;
+	/** Snap the selected notes (or whole pattern) back onto the grid */
+	quantizeCurrentPattern: () => void;
 	clearCurrentPattern: () => void;
 	transposeCurrentPattern: (semitones: number) => void;
 	generateRiffForCurrentPattern: () => void;

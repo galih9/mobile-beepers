@@ -24,6 +24,8 @@ import { useDrag, useDrop } from "react-dnd";
 import type { FunctionComponent } from "../../../common/types";
 import { getStepsPerBar } from "../store/songHelpers";
 import { useChiptuneStore } from "../store/useChiptuneStore";
+import { SongSectionStrip } from "./SongSectionStrip";
+import { channelInk, useCanvasPalette } from "./useCanvasPalette";
 import type { BarMatrixSelection, Channel } from "../types/music";
 import {
 	DND_ITEM_TYPES,
@@ -76,6 +78,7 @@ const ChannelRailRow = ({
 	onReorderChannels,
 	onApplyPreset,
 }: ChannelRailRowProps): FunctionComponent => {
+	const palette = useCanvasPalette();
 	const [{ isDragging }, dragHandleRef, previewRowRef] = useDrag<
 		ChannelRowDragItem,
 		void,
@@ -203,7 +206,7 @@ const ChannelRailRow = ({
 
 			<button
 				className="min-w-0 flex-1 truncate text-left text-[10px] font-semibold md:text-[11px]"
-				style={{ color: channel.color }}
+				style={{ color: channelInk(channel.color, palette) }}
 				type="button"
 				onClick={(): void => {
 					onSelectChannel(channelIndex);
@@ -294,6 +297,7 @@ const MatrixBarCell = ({
 	onCopyPatternSlot,
 	onDropBarRange,
 }: MatrixBarCellProps): FunctionComponent => {
+	const palette = useCanvasPalette();
 	const [{ isDragging }, dragCellRef] = useDrag<
 		MatrixPatternCellDragItem | MatrixBarRangeDragItem,
 		void,
@@ -376,15 +380,15 @@ const MatrixBarCell = ({
 				backgroundColor: isSlotSelected
 					? channel.color
 					: isInMultiSelection
-						? "#1e293b"
+						? palette.matrixCellSelected
 						: patternNumber > 0
-							? "#3d3d3d"
-							: "#000000",
+							? palette.matrixCellFilled
+							: palette.matrixCellEmpty,
 				color: isSlotSelected
 					? "#000000"
 					: isInMultiSelection
-						? "#22d3ee"
-						: channel.color,
+						? palette.matrixCellPlaying
+						: channelInk(channel.color, palette),
 				opacity: isDragging
 					? 0.5
 					: !isSlotSelected && !isInMultiSelection && patternNumber === 0
@@ -509,6 +513,10 @@ export const SongMatrixPanel = (): FunctionComponent => {
 		(state) => state.copyBarPatternSlot
 	);
 	const setLoopRange = useChiptuneStore((state) => state.setLoopRange);
+	const addSectionFromLoop = useChiptuneStore(
+		(state) => state.addSectionFromLoop
+	);
+	const songSections = song.sections ?? [];
 	const setBarSelection = useChiptuneStore((state) => state.setBarSelection);
 	const clearBarSelection = useChiptuneStore(
 		(state) => state.clearBarSelection
@@ -780,6 +788,13 @@ export const SongMatrixPanel = (): FunctionComponent => {
 							{loopStart + 1}–{loopEnd + 1}
 						</span>
 					</div>
+
+					{songSections.length > 0 && (
+						<div className="mt-0.5 flex h-5 items-center justify-between px-1 font-mono text-[9px] font-bold text-pink-300">
+							<span>SECTIONS</span>
+							<span>{songSections.length}</span>
+						</div>
+					)}
 				</div>
 
 				{/* Right Scrollable UltraBox Bar Grid + Purple Loop Capsule */}
@@ -1023,13 +1038,22 @@ export const SongMatrixPanel = (): FunctionComponent => {
 							}}
 						>
 							<div
-								className="absolute h-[18px] cursor-grab rounded-full border-[3.5px] border-[#845ef7] bg-[#0a0414]/90 shadow-[0_0_8px_rgba(132,94,247,0.4)] active:cursor-grabbing"
+								className="absolute h-[18px] cursor-grab rounded-full border-[3.5px] border-violet-500 bg-slate-950/90 shadow-[0_0_8px_color-mix(in_oklab,var(--color-violet-500)_40%,transparent)] active:cursor-grabbing"
 								style={{
 									left: `${capsuleLeftPixels}px`,
 									width: `${capsuleWidthPixels}px`,
 								}}
 							/>
 						</div>
+
+						{songSections.length > 0 && (
+							<SongSectionStrip
+								barCellPitch={BAR_CELL_PITCH}
+								loopEndBar={loopEnd}
+								loopStartBar={loopStart}
+								sections={songSections}
+							/>
+						)}
 					</div>
 				</div>
 			</div>
@@ -1264,6 +1288,20 @@ export const SongMatrixPanel = (): FunctionComponent => {
 					Drag purple bar for loop
 				</span>
 				<div className="flex shrink-0 items-center gap-1">
+					<button
+						aria-label={`Save loop bars ${loopStart + 1} to ${loopEnd + 1} as a named section`}
+						className="inline-flex h-5 items-center gap-1 rounded border border-pink-500/40 bg-pink-500/10 px-1.5 text-[10px] font-semibold text-pink-200 hover:border-pink-400 hover:text-white"
+						title="Save the current loop range as a named section (click a section later to loop it)"
+						type="button"
+						onClick={(): void => {
+							addSectionFromLoop();
+							setStatusAnnouncement(
+								`Saved bars ${loopStart + 1}–${loopEnd + 1} as a section`
+							);
+						}}
+					>
+						<span>+ Section</span>
+					</button>
 					<button
 						aria-label="Select all bars across all tracks"
 						className="inline-flex h-5 items-center gap-1 rounded border border-slate-800 bg-slate-900 px-1.5 text-[10px] font-semibold text-slate-300 hover:border-slate-700 hover:text-white"

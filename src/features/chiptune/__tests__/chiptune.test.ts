@@ -5,7 +5,6 @@ import {
 	registerChiptuneAgentApi,
 } from "../api/chiptuneAgentApi";
 import { DEMO_SONGS } from "../constants/demoSongs";
-import { INSTRUMENT_PRESETS } from "../constants/instrumentPresets";
 import {
 	buildPianoRollRows,
 	isMidiNoteInScale,
@@ -101,146 +100,23 @@ describe("useChiptuneStore", () => {
 		expect((generatedPattern?.notes.length ?? 0) > 0).toBe(true);
 	});
 
-	it("loads built-in demo songs", () => {
-		useChiptuneStore.getState().loadDemoSong("demo-starlight-boss");
-		let state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Starlight Boss Rush");
-		expect(state.song.bpm).toBe(158);
-
-		useChiptuneStore.getState().loadDemoSong("demo-overworld-quest");
-		state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Overworld Quest 1985");
-		expect(state.song.bpm).toBe(148);
-		expect(state.song.rootKey).toBe("G");
-		expect(state.song.scale).toBe("major");
-
-		useChiptuneStore.getState().loadDemoSong("demo-cyber-chase");
-		state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Cyber Chase 2088");
-		expect(state.song.bpm).toBe(164);
-
-		useChiptuneStore.getState().loadDemoSong("demo-sunken-ruins");
-		state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Sunken Coral Ruins");
-		expect(state.song.bpm).toBe(108);
-
-		useChiptuneStore.getState().loadDemoSong("demo-haunted-crypt");
-		state = useChiptuneStore.getState();
-		expect(state.song.title).toBe("Haunted Pixel Crypt");
-		expect(state.song.bpm).toBe(132);
-	});
-
-	it("loads Pocket Battle 1996 as the primary featured 168 BPM RPG battle demo", () => {
-		expect(DEMO_SONGS[0]?.id).toBe("demo-pocket-battle-1996");
-
-		useChiptuneStore.getState().loadDemoSong("demo-pocket-battle-1996");
+	it("ships only the breakcore demos, Breakcore Battle v1 first", () => {
+		expect(DEMO_SONGS.map((demo) => demo.id)).toEqual([
+			"demo-breakcore-battle-v1",
+			"demo-amen-overdrive-180",
+		]);
+		useChiptuneStore.getState().loadDemoSong("demo-breakcore-battle-v1");
 		const { song } = useChiptuneStore.getState();
-		expect(song.title).toBe("Pocket Battle 1996");
-		expect(song.bpm).toBe(168);
-		expect(song.rootKey).toBe("E");
-		expect(song.scale).toBe("minor");
-		expect(song.totalBars).toBe(32);
-		expect(song.loopStartBar).toBe(0);
-		expect(song.loopEndBar).toBe(31);
-		expect(song.channels).toHaveLength(5);
-
+		expect(song.title).toBe("Breakcore Battle v1");
+		expect(song.bpm).toBe(174);
 		for (const channel of song.channels) {
-			expect(channel.barSequence).toHaveLength(32);
-			for (const patternNumber of channel.barSequence) {
-				if (patternNumber > 0) {
-					expect(channel.patterns[String(patternNumber)]).toBeDefined();
-				}
-			}
-			if (channel.type === "pitch") {
-				for (const pattern of Object.values(channel.patterns)) {
-					for (const note of pattern.notes) {
-						expect(note.pitch).toBeGreaterThanOrEqual(36);
-						expect(note.pitch).toBeLessThanOrEqual(84);
-						expect(isMidiNoteInScale(note.pitch, "E", "minor")).toBe(true);
+			for (const pattern of Object.values(channel.patterns)) {
+				for (const note of pattern.notes) {
+					if (channel.type === "pitch") {
+						expect(isMidiNoteInScale(note.pitch, "A", "major")).toBe(true);
 					}
 				}
 			}
-		}
-	});
-
-	it("loads Minimal Bit House 124 as a 124 BPM minimalist chiptune house demo", () => {
-		expect(
-			DEMO_SONGS.some((demo) => demo.id === "demo-minimal-house-124")
-		).toBe(true);
-
-		useChiptuneStore.getState().loadDemoSong("demo-minimal-house-124");
-		const { song } = useChiptuneStore.getState();
-		expect(song.title).toBe("Minimal Bit House 124");
-		expect(song.bpm).toBe(124);
-		expect(song.rootKey).toBe("D");
-		expect(song.scale).toBe("dorian");
-		expect(song.totalBars).toBe(32);
-		expect(song.loopStartBar).toBe(0);
-		expect(song.loopEndBar).toBe(31);
-		expect(song.channels).toHaveLength(4);
-
-		// Verify all 4 dedicated minimal house presets are registered
-		const presetIds = new Set(INSTRUMENT_PRESETS.map((preset) => preset.id));
-		expect(presetIds.has("minimal-house-stab")).toBe(true);
-		expect(presetIds.has("minimal-house-bass")).toBe(true);
-		expect(presetIds.has("minimal-house-kick")).toBe(true);
-		expect(presetIds.has("minimal-house-hats")).toBe(true);
-
-		// Verify arrangement uses track muting/unmuting (0 bars) and filter sweeps
-		for (const channel of song.channels) {
-			expect(channel.barSequence).toHaveLength(32);
-			expect(channel.barSequence.includes(0)).toBe(true);
-			expect(Object.keys(channel.patterns).length).toBeGreaterThan(0);
-		}
-		const stabChannel = song.channels[0];
-		const hasFilterSweeps = Object.values(stabChannel?.patterns ?? {}).some(
-			(pattern) =>
-				pattern.notes.some(
-					(note) =>
-						note.filterCutoff !== undefined && note.filterSweepTo !== undefined
-				)
-		);
-		expect(hasFilterSweeps).toBe(true);
-	});
-
-	it("loads Pulse Floor 132 as an energetic 132 BPM minimalist chiptune dance track", () => {
-		useChiptuneStore.getState().loadDemoSong("demo-pulse-floor-132");
-		const { song } = useChiptuneStore.getState();
-		expect(song.title).toBe("Pulse Floor 132");
-		expect(song.bpm).toBe(132);
-		expect(song.rootKey).toBe("F");
-		expect(song.scale).toBe("minor");
-		expect(song.totalBars).toBe(32);
-		expect(song.channels).toHaveLength(4);
-
-		const presetIds = new Set(INSTRUMENT_PRESETS.map((preset) => preset.id));
-		expect(presetIds.has("retro-dance-stab")).toBe(true);
-		expect(presetIds.has("dance-triangle-bass")).toBe(true);
-
-		for (const channel of song.channels) {
-			expect(channel.barSequence).toHaveLength(32);
-			expect(channel.barSequence.includes(0)).toBe(true);
-			expect(Object.keys(channel.patterns).length).toBeGreaterThan(0);
-		}
-	});
-
-	it("loads Neon Club House 125 as a ~1-minute 125 BPM 32-bar house loop", () => {
-		useChiptuneStore.getState().loadDemoSong("demo-house-125");
-		const { song } = useChiptuneStore.getState();
-		expect(song.title).toBe("Neon Club House 125");
-		expect(song.bpm).toBe(125);
-		expect(song.totalBars).toBe(32);
-		expect(song.loopStartBar).toBe(0);
-		expect(song.loopEndBar).toBe(31);
-
-		const loopBars = song.loopEndBar - song.loopStartBar + 1;
-		const loopDurationSeconds = (loopBars * song.beatsPerBar * 60) / song.bpm;
-		expect(loopDurationSeconds).toBeCloseTo(61.44, 2);
-
-		expect(song.channels).toHaveLength(5);
-		for (const channel of song.channels) {
-			expect(channel.barSequence).toHaveLength(32);
-			expect(Object.keys(channel.patterns).length).toBeGreaterThan(0);
 		}
 	});
 

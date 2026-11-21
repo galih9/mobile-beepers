@@ -5,6 +5,7 @@ import { chiptunePlaybackEngine } from "../audio/playbackEngine";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import { InstrumentSlidersSection } from "./InstrumentSlidersSection";
 import { SongSlidersSection } from "./SongSlidersSection";
+import { useCanvasPalette } from "./useCanvasPalette";
 
 interface ToneWaveformMonitorProps {
 	accentColor: string;
@@ -16,6 +17,8 @@ const ToneWaveformMonitor = ({
 	isPlaying,
 }: ToneWaveformMonitorProps): FunctionComponent => {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
+	const { scopeBackground, scopeGrid, scopeTrace } = useCanvasPalette();
+	const traceColor = scopeTrace ?? accentColor;
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -47,17 +50,17 @@ const ToneWaveformMonitor = ({
 			context.save();
 			context.scale(pixelRatio, pixelRatio);
 
-			context.fillStyle = "#060913";
+			context.fillStyle = scopeBackground;
 			context.fillRect(0, 0, logicalWidth, logicalHeight);
 
-			context.strokeStyle = "rgba(148, 163, 184, 0.2)";
+			context.strokeStyle = scopeGrid;
 			context.lineWidth = 1;
 			context.beginPath();
 			context.moveTo(0, logicalHeight / 2);
 			context.lineTo(logicalWidth, logicalHeight / 2);
 			context.stroke();
 
-			context.strokeStyle = accentColor;
+			context.strokeStyle = traceColor;
 			context.lineWidth = 1.75;
 			context.beginPath();
 			const sliceWidth = logicalWidth / samples.length;
@@ -81,7 +84,7 @@ const ToneWaveformMonitor = ({
 		return (): void => {
 			window.cancelAnimationFrame(animationFrameId);
 		};
-	}, [accentColor]);
+	}, [scopeBackground, scopeGrid, traceColor]);
 
 	return (
 		<div className="flex flex-col gap-1 rounded-lg border border-slate-800/90 bg-slate-900/60 p-2">

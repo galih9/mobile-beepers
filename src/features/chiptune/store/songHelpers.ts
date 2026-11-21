@@ -3,6 +3,7 @@ import {
 	generateProceduralPatternNotes,
 } from "../constants/demoSongs";
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
+import { MAX_PATTERN_INDEX, MAX_SONG_BARS } from "../constants/limits";
 import {
 	MELODIC_MAX_MIDI,
 	MELODIC_MIN_MIDI,
@@ -19,6 +20,7 @@ import type {
 	NoteFadeMode,
 	Pattern,
 	SongProject,
+	SongSection,
 } from "../types/music";
 
 const PITCH_BEND_CYCLE: Array<number> = [0, 2, 7, 12, -2, -7, -12];
@@ -154,7 +156,10 @@ export const setBarPatternIndexInSong = (
 	if (!targetChannel) {
 		return song;
 	}
-	const clampedPatternIndex = Math.max(0, Math.min(32, patternIndex));
+	const clampedPatternIndex = Math.max(
+		0,
+		Math.min(MAX_PATTERN_INDEX, patternIndex)
+	);
 	const patternKey = String(clampedPatternIndex);
 	const nextPatterns =
 		clampedPatternIndex > 0 && !targetChannel.patterns[patternKey]
@@ -550,6 +555,35 @@ export const copyBarPatternSlotInSong = (
 
 const FADE_MODE_CYCLE: Array<NoteFadeMode> = ["none", "fadeIn", "fadeOut"];
 
+/** Stutter tool cycle: off → 2 → 3 → 4 → 6 → 8 → off */
+export const RATCHET_CYCLE: Array<number> = [1, 2, 3, 4, 6, 8];
+
+export const cycleNoteRatchetInSong = (
+	song: SongProject,
+	channelIndex: number,
+	barIndex: number,
+	step: number,
+	pitch: number
+): SongProject => {
+	return updateChannelPatternNotes(song, channelIndex, barIndex, (notes) =>
+		notes.map((note) => {
+			if (
+				note.pitch === pitch &&
+				step >= note.step &&
+				step < note.step + note.duration
+			) {
+				const currentIndex = RATCHET_CYCLE.indexOf(note.ratchet ?? 1);
+				const nextRatchet =
+					RATCHET_CYCLE[
+						(Math.max(0, currentIndex) + 1) % RATCHET_CYCLE.length
+					] ?? 1;
+				return { ...note, ratchet: nextRatchet > 1 ? nextRatchet : undefined };
+			}
+			return note;
+		})
+	);
+};
+
 export const setNotePitchBendInSong = (
 	song: SongProject,
 	channelIndex: number,
@@ -700,7 +734,10 @@ export const pasteBarsIntoSong = (
 	let requiredBars = song.totalBars;
 	const maxNeededBar = targetBar + clipboard.barCount;
 	if (maxNeededBar > requiredBars) {
-		requiredBars = Math.min(32, Math.max(requiredBars, maxNeededBar));
+		requiredBars = Math.min(
+			MAX_SONG_BARS,
+			Math.max(requiredBars, maxNeededBar)
+		);
 	}
 
 	let currentSong = song;
@@ -901,4 +938,232 @@ export const shiftBarsInSong = (
 		return { song, nextSelection: sel };
 	}
 	return moveBarsInSong(song, sel, newStartBar, sel.startChannel);
+};
+
+// ─── Per-note volume (velocity), micro-timing & humanize ────────────────────
+
+export const MIN_NOTE_VELOCITY = 0.1;
+export const MAX_NOTE_VELOCITY = 1;
+export const MAX_TIMING_OFFSET = 0.5;
+
+export const clampNoteVelocity = (velocity: number): number => {
+	if (!Number.isFinite(velocity)) {
+		return 0.9;
+	}
+	const clamped = Math.max(
+		MIN_NOTE_VELOCITY,
+		Math.min(MAX_NOTE_VELOCITY, velocity)
+	);
+	return Math.round(clamped * 100) / 100;
+};
+
+export const clampTimingOffset = (offset: number): number => {
+	if (!Number.isFinite(offset)) {
+		return 0;
+	}
+	const clamped = Math.max(
+		-MAX_TIMING_OFFSET,
+		Math.min(MAX_TIMING_OFFSET, offset)
+	);
+	return Math.round(clamped * 100) / 100;
+};
+
+export interface NotePropertyUpdate {
+	id: string;
+	velocity?: number;
+	timingOffset?: number;
+}
+
+/**
+ * Applies per-note velocity / timing updates (matched by note id) to the
+ * pattern playing at `barIndex` on `channelIndex`.
+ */
+export const updateNotePropertiesInSong = (
+	song: SongProject,
+	channelIndex: number,
+	barIndex: number,
+	updates: Array<NotePropertyUpdate>
+): SongProject => {
+	if (updates.length === 0) {
+		return song;
+	}
+	const channel = song.channels[channelIndex];
+	const patternIndex = channel?.barSequence[barIndex] ?? 0;
+	if (!channel || patternIndex <= 0) {
+		return song;
+	}
+	const updateById = new Map(updates.map((update) => [update.id, update]));
+	return updateChannelPatternNotes(song, channelIndex, barIndex, (notes) =>
+		notes.map((note) => {
+			const update = updateById.get(note.id);
+			if (!update) {
+				return note;
+			}
+			const nextNote: NoteEvent = { ...note };
+			if (update.velocity !== undefined) {
+				nextNote.velocity = clampNoteVelocity(update.velocity);
+			}
+			if (update.timingOffset !== undefined) {
+				const offset = clampTimingOffset(update.timingOffset);
+				if (offset === 0) {
+					delete nextNote.timingOffset;
+				} else {
+					nextNote.timingOffset = offset;
+				}
+			}
+			return nextNote;
+		})
+	);
+};
+
+export interface HumanizeOptions {
+	/** Max random velocity change (± this amount, 0-0.5). Default 0.08 */
+	velocityAmount?: number;
+	/** Max random timing nudge in steps (± this amount, 0-0.5). Default 0.08 */
+	timingAmount?: number;
+	/** Only humanize these note ids (defaults to every note in the pattern) */
+	noteIds?: Array<string>;
+	/** Seed for repeatable results */
+	seed?: number;
+}
+
+/** Small deterministic PRNG (mulberry32) so humanize results are repeatable. */
+const createSeededRandom = (seed: number): (() => number) => {
+	let state = Math.floor(seed) >>> 0;
+	return (): number => {
+		state = (state + 0x6d2b79f5) >>> 0;
+		let value = state;
+		value = Math.imul(value ^ (value >>> 15), value | 1);
+		value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+		return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+	};
+};
+
+/**
+ * Humanize: nudges velocity and timing of notes by small random amounts so a
+ * pattern feels played rather than programmed. Accents stay accents — the
+ * change is relative to each note's current velocity, and downbeat notes
+ * (step 0) are never pulled earlier than the bar.
+ */
+export const humanizeNotesInSong = (
+	song: SongProject,
+	channelIndex: number,
+	barIndex: number,
+	options: HumanizeOptions = {}
+): SongProject => {
+	const channel = song.channels[channelIndex];
+	const patternIndex = channel?.barSequence[barIndex] ?? 0;
+	if (!channel || patternIndex <= 0) {
+		return song;
+	}
+	const pattern = channel.patterns[String(patternIndex)];
+	if (!pattern || pattern.notes.length === 0) {
+		return song;
+	}
+	const velocityAmount = Math.max(
+		0,
+		Math.min(0.5, options.velocityAmount ?? 0.08)
+	);
+	const timingAmount = Math.max(
+		0,
+		Math.min(MAX_TIMING_OFFSET, options.timingAmount ?? 0.08)
+	);
+	const random = createSeededRandom(
+		options.seed ?? Math.floor(Math.random() * 2 ** 31)
+	);
+	const targetIds = options.noteIds ? new Set(options.noteIds) : null;
+
+	const updates: Array<NotePropertyUpdate> = pattern.notes
+		.filter((note) => !targetIds || targetIds.has(note.id))
+		.map((note) => {
+			const velocityDelta = (random() * 2 - 1) * velocityAmount;
+			let timingDelta = (random() * 2 - 1) * timingAmount;
+			if (note.step === 0 && timingDelta < 0) {
+				timingDelta = -timingDelta;
+			}
+			return {
+				id: note.id,
+				velocity: note.velocity + velocityDelta,
+				timingOffset: timingAmount > 0 ? timingDelta : note.timingOffset,
+			};
+		});
+	return updateNotePropertiesInSong(song, channelIndex, barIndex, updates);
+};
+
+/** Removes micro-timing from notes (snaps them back to the grid). */
+export const quantizeNotesInSong = (
+	song: SongProject,
+	channelIndex: number,
+	barIndex: number,
+	noteIds?: Array<string>
+): SongProject => {
+	const channel = song.channels[channelIndex];
+	const pattern = channel?.patterns[String(channel.barSequence[barIndex] ?? 0)];
+	if (!pattern) {
+		return song;
+	}
+	const targetIds = noteIds ? new Set(noteIds) : null;
+	return updateNotePropertiesInSong(
+		song,
+		channelIndex,
+		barIndex,
+		pattern.notes
+			.filter((note) => !targetIds || targetIds.has(note.id))
+			.map((note) => ({ id: note.id, timingOffset: 0 }))
+	);
+};
+
+// ─── Song sections (named loop regions) ──────────────────────────────────────
+
+export const normalizeSongSections = (
+	sections: Array<Partial<SongSection>>,
+	totalBars: number
+): Array<SongSection> => {
+	const lastBar = Math.max(0, totalBars - 1);
+	return sections
+		.map((section, index) => {
+			const startBar = Math.max(
+				0,
+				Math.min(lastBar, Math.round(section.startBar ?? 0))
+			);
+			const endBar = Math.max(
+				startBar,
+				Math.min(lastBar, Math.round(section.endBar ?? startBar))
+			);
+			const name =
+				(section.name ?? "").trim().slice(0, 32) ||
+				`Section ${String.fromCharCode(65 + (index % 26))}`;
+			return {
+				id: section.id ?? `section-${startBar}-${endBar}-${index}`,
+				name,
+				startBar,
+				endBar,
+			};
+		})
+		.sort((first, second) => first.startBar - second.startBar);
+};
+
+export const setSongSections = (
+	song: SongProject,
+	sections: Array<Partial<SongSection>>
+): SongProject => {
+	return {
+		...song,
+		updatedAt: Date.now(),
+		sections: normalizeSongSections(sections, song.totalBars),
+	};
+};
+
+/** Next unused "Section A/B/C…" name. */
+export const getNextSectionName = (song: SongProject): string => {
+	const usedNames = new Set(
+		(song.sections ?? []).map((section) => section.name)
+	);
+	for (let index = 0; index < 26; index += 1) {
+		const candidate = `Section ${String.fromCharCode(65 + index)}`;
+		if (!usedNames.has(candidate)) {
+			return candidate;
+		}
+	}
+	return `Section ${(song.sections?.length ?? 0) + 1}`;
 };

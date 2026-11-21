@@ -1,4 +1,10 @@
-import type { Channel, SongProject, WaveformType } from "../types/music";
+import type {
+	Channel,
+	NoteEvent,
+	SongProject,
+	WaveformType,
+} from "../types/music";
+import { resolveRatchetCount } from "./noteRatchet";
 
 export interface MidiExportOptions {
 	/** If true, only exports the loop region (loopStartBar to loopEndBar). Defaults to false (exports all bars). */
@@ -12,6 +18,39 @@ export interface MidiExportOptions {
 export const TICKS_PER_BEAT = 480;
 
 /** General MIDI percussion mapping for drum pads (0 to 7) */
+/**
+ * Ratcheted (stutter) notes are written as their individual retriggers so DAWs hear the roll.
+ * Pitched ratchets with a bend become a stepped run of plain notes.
+ */
+export const expandRatchetedNotes = (
+	notes: Array<NoteEvent>,
+	isDrum: boolean
+): Array<NoteEvent> => {
+	const expanded: Array<NoteEvent> = [];
+	for (const note of notes) {
+		const ratchet = resolveRatchetCount(note.ratchet);
+		if (ratchet <= 1) {
+			expanded.push(note);
+			continue;
+		}
+		const subDuration = Math.max(1, note.duration || 1) / ratchet;
+		for (let hitIndex = 0; hitIndex < ratchet; hitIndex += 1) {
+			const progress = hitIndex / (ratchet - 1);
+			expanded.push({
+				...note,
+				step: note.step + hitIndex * subDuration,
+				duration: subDuration,
+				pitch: isDrum
+					? note.pitch
+					: note.pitch + Math.round(note.pitchBend * progress),
+				pitchBend: 0,
+				ratchet: 1,
+			});
+		}
+	}
+	return expanded;
+};
+
 export const DRUM_PAD_TO_GM_NOTE: Record<number, number> = {
 	0: 36, // 8-Bit Kick -> Bass Drum 1
 	1: 38, // Noise Snare -> Acoustic Snare
@@ -345,16 +384,24 @@ const buildChannelTrackChunk = (
 			continue;
 		}
 
-		for (const note of pattern.notes) {
-			const isOddStep = note.step % 2 === 1;
+		for (const note of expandRatchetedNotes(pattern.notes, isDrum)) {
+			const isOddStep = Math.floor(note.step) % 2 === 1;
 			const swingTicks =
 				includeSwing && isOddStep && song.swing > 0
 					? Math.round(song.swing * ticksPerStep * 0.45)
 					: 0;
 
-			const noteStartTick =
-				barStartTick + note.step * ticksPerStep + swingTicks;
-			const durationSteps = Math.max(1, note.duration || 1);
+			const timingOffsetTicks = Math.round(
+				(note.timingOffset ?? 0) * ticksPerStep
+			);
+			const noteStartTick = Math.max(
+				0,
+				barStartTick +
+					Math.round(note.step * ticksPerStep) +
+					swingTicks +
+					timingOffsetTicks
+			);
+			const durationSteps = Math.max(0.05, note.duration || 1);
 			const noteDurationTicks = Math.max(
 				1,
 				Math.round(durationSteps * ticksPerStep)

@@ -13,24 +13,23 @@ import {
 	SpeakerWaveIcon,
 	TrashIcon,
 } from "@heroicons/react/24/outline";
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import type { FunctionComponent } from "../../../common/types";
 import { DEMO_SONGS } from "../constants/demoSongs";
+import { MAX_SONG_BARS } from "../constants/limits";
 import { SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
 import { SFX_PRESETS } from "../constants/sfxPresets";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { LoopMode } from "../types/music";
 import type { DemoBrowserTab } from "./DemoSongBrowserDialog";
+import { LcdReadout } from "./LcdReadout";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 interface TransportHeaderProps {
 	onOpenDemoBrowser: (initialTab?: DemoBrowserTab) => void;
 	onOpenProjectModal: () => void;
 	onOpenResetModal: () => void;
 }
-
-const formatTwoDigits = (value: number): string => {
-	return String(value).padStart(2, "0");
-};
 
 export const TransportHeader = ({
 	onOpenDemoBrowser,
@@ -71,7 +70,6 @@ export const TransportHeader = ({
 		element.style.setProperty("--control-value", String(song.masterVolume));
 	}, [song.masterVolume]);
 
-	const sliderStyle = { "--slider-accent": "#00c7ff" } as CSSProperties;
 	const scaleLabel = SCALE_DEFINITIONS[song.scale]?.label ?? song.scale;
 
 	const nextLoopMode: LoopMode =
@@ -92,15 +90,34 @@ export const TransportHeader = ({
 		loopMode === "once" ? "1-Shot" : loopMode === "bar" ? "Bar" : "Song";
 
 	return (
-		<header className="safe-top-bar studio-chrome-text flex h-11 shrink-0 items-center justify-between gap-2 border-b border-slate-800 bg-slate-950 pb-1.5 md:h-12 md:px-3">
-			{/* Left: Play/Stop + Loop + Tablet/Desktop LED Transport Counter */}
+		<header className="safe-top-bar studio-chrome-text no-scrollbar flex h-12 shrink-0 items-center justify-between gap-2 overflow-x-auto pb-1.5 md:h-14 md:gap-3 md:overflow-visible md:px-3">
+			{/* Left: brand plate, Play key, mode + history wells, loop & follow */}
 			<div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+				<div
+					aria-hidden="true"
+					className="mr-1 hidden items-center gap-2 xl:flex"
+					title="UltraBeep"
+				>
+					{/* Speaker grille slots */}
+					<span className="flex -skew-x-12 gap-[3px]">
+						{[0, 1, 2, 3].map((slot) => (
+							<span
+								key={slot}
+								className="h-4 w-[3px] rounded-full bg-slate-800 shadow-[inset_0_1px_1px_var(--well-shadow)]"
+							/>
+						))}
+					</span>
+					<span className="-skew-x-6 text-[15px] leading-none font-bold tracking-tight text-slate-200">
+						Ultra<span className="text-cyan-300">Beep</span>
+					</span>
+				</div>
+
 				<button
 					aria-label={isPlaying ? "Stop playback" : "Start playback"}
 					type="button"
-					className={`inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-bold tracking-wide transition active:scale-95 ${
+					className={`gear-key inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold ${
 						isPlaying
-							? "bg-rose-500 text-white"
+							? "bg-rose-400 text-slate-950"
 							: "bg-cyan-400 text-slate-950 hover:bg-cyan-300"
 					}`}
 					onClick={(): void => {
@@ -234,35 +251,23 @@ export const TransportHeader = ({
 					/>
 					<span className="hidden sm:inline">Follow</span>
 				</label>
-
-				{/* Live LED Transport Status Badge on Tablet & Desktop */}
-				<div
-					aria-label="Transport readout"
-					className="hidden items-center gap-2 rounded-md border border-slate-800 bg-black/80 px-2.5 py-1 font-mono text-[11px] font-bold md:flex"
-				>
-					<span
-						aria-hidden="true"
-						className={`size-2 rounded-full ${
-							isPlaying
-								? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
-								: "bg-slate-600"
-						}`}
-					/>
-					<span className="text-cyan-300">
-						BAR {formatTwoDigits(playbackBar + 1)} · STEP{" "}
-						{formatTwoDigits(playbackStep + 1)}
-					</span>
-					<span className="text-slate-600">|</span>
-					<span className="text-amber-300">{Math.round(song.bpm)} BPM</span>
-					<span className="hidden text-slate-600 lg:inline">|</span>
-					<span className="hidden text-violet-300 lg:inline">
-						{song.rootKey} {scaleLabel}
-					</span>
-				</div>
 			</div>
 
-			{/* Center: Inline Master Volume Slider */}
-			<div className="flex min-w-0 max-w-44 flex-1 items-center gap-1.5 md:max-w-52">
+			{/* Center: the LCD readout */}
+			<div className="flex min-w-0 flex-1 justify-center">
+				<LcdReadout
+					bar={playbackBar + 1}
+					bpm={song.bpm}
+					isPlaying={isPlaying}
+					keyLabel={`${song.rootKey} ${scaleLabel.toLowerCase()}`}
+					loopMode={loopMode}
+					step={playbackStep + 1}
+					title={song.title}
+				/>
+			</div>
+
+			{/* Master volume */}
+			<div className="flex min-w-0 max-w-40 flex-1 items-center gap-1.5 md:w-28 md:flex-none lg:w-32">
 				<SpeakerWaveIcon
 					aria-hidden="true"
 					className="size-3.5 shrink-0 text-cyan-400"
@@ -275,7 +280,6 @@ export const TransportHeader = ({
 					max={1}
 					min={0.05}
 					step={0.01}
-					style={sliderStyle}
 					type="range"
 					value={song.masterVolume}
 					onChange={(event): void => {
@@ -317,11 +321,11 @@ export const TransportHeader = ({
 						<button
 							aria-label="Add 4 bars to song length"
 							className="hidden h-7 items-center gap-0.5 rounded-md border border-slate-700 bg-slate-900 px-2 text-[11px] font-semibold text-violet-300 hover:border-violet-400/50 hover:text-white disabled:opacity-40 lg:inline-flex"
-							disabled={song.totalBars >= 32}
+							disabled={song.totalBars >= MAX_SONG_BARS}
 							title="Extend song length by 4 bars"
 							type="button"
 							onClick={(): void => {
-								setTotalBars(Math.min(32, song.totalBars + 4));
+								setTotalBars(Math.min(MAX_SONG_BARS, song.totalBars + 4));
 							}}
 						>
 							<PlusIcon aria-hidden="true" className="size-3" />
@@ -365,10 +369,6 @@ export const TransportHeader = ({
 					</>
 				)}
 
-				<span className="hidden max-w-36 truncate font-mono text-[11px] font-semibold text-slate-300 xl:inline">
-					{song.title}
-				</span>
-
 				<button
 					aria-label="Open song settings, library, and export"
 					className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs font-semibold text-slate-200 hover:border-cyan-400/60 hover:text-white"
@@ -393,6 +393,10 @@ export const TransportHeader = ({
 					<TrashIcon aria-hidden="true" className="size-3.5 text-rose-400" />
 					<span className="hidden sm:inline">Reset</span>
 				</button>
+
+				<div className="hidden md:flex">
+					<ThemeSwitch />
+				</div>
 			</div>
 		</header>
 	);

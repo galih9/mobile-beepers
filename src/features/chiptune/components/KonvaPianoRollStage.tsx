@@ -2,6 +2,8 @@ import type Konva from "konva";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { FunctionComponent } from "../../../common/types";
+import { useChiptuneStore } from "../store/useChiptuneStore";
+import { useCanvasPalette } from "./useCanvasPalette";
 import type {
 	Channel,
 	EditorTool,
@@ -30,6 +32,7 @@ interface KonvaPianoRollStageProps {
 	playbackStep: number;
 	activeTool: EditorTool;
 	defaultNoteDuration: number;
+	defaultNoteVelocity: number;
 	onAddOrReplaceNote: (noteInput: Omit<NoteEvent, "id">) => void;
 	onRemoveNote: (step: number, pitch: number) => void;
 	onResizeNote: (step: number, pitch: number, duration: number) => void;
@@ -51,6 +54,7 @@ interface KonvaPianoRollStageProps {
 		bendStyle?: NoteBendStyle
 	) => void;
 	onCycleNoteFade: (step: number, pitch: number) => void;
+	onCycleNoteRatchet: (step: number, pitch: number) => void;
 	onPreviewPitch: (pitch: number, note?: NoteEvent) => void;
 }
 
@@ -228,6 +232,7 @@ export const KonvaPianoRollStage = ({
 	playbackStep,
 	activeTool,
 	defaultNoteDuration,
+	defaultNoteVelocity,
 	onAddOrReplaceNote,
 	onRemoveNote,
 	onResizeNote,
@@ -236,6 +241,7 @@ export const KonvaPianoRollStage = ({
 	onCyclePitchBend,
 	onSetNotePitchBend,
 	onCycleNoteFade,
+	onCycleNoteRatchet,
 	onPreviewPitch,
 }: KonvaPianoRollStageProps): FunctionComponent => {
 	const stageWidth = Math.max(1, stepsPerBar * stepWidth);
@@ -246,7 +252,15 @@ export const KonvaPianoRollStage = ({
 	const selectionBoxRef = useRef<SelectionBoxSession | null>(null);
 	const groupDragRef = useRef<GroupNoteDragSession | null>(null);
 	const [cursorMode, setCursorMode] = useState<string>("");
-	const [selectedNoteIds, setSelectedNoteIds] = useState<Array<string>>([]);
+	const palette = useCanvasPalette();
+	const showNoteVelocityLabels = useChiptuneStore(
+		(state) => state.showNoteVelocityLabels
+	);
+	// Note selection lives in the store so the volume lane and toolbar share it
+	const selectedNoteIds = useChiptuneStore((state) => state.selectedNoteIds);
+	const setSelectedNoteIds = useChiptuneStore(
+		(state) => state.setSelectedNoteIds
+	);
 	const [selectionBounds, setSelectionBounds] =
 		useState<SelectionRectBounds | null>(null);
 
@@ -333,6 +347,8 @@ export const KonvaPianoRollStage = ({
 					onRemoveNote(bendDrag.step, bendDrag.pitch);
 				} else if (activeTool === "fade") {
 					onCycleNoteFade(bendDrag.step, bendDrag.pitch);
+				} else if (activeTool === "stutter") {
+					onCycleNoteRatchet(bendDrag.step, bendDrag.pitch);
 				}
 			}
 			bendDragRef.current = null;
@@ -343,6 +359,7 @@ export const KonvaPianoRollStage = ({
 		activeTool,
 		buildGroupMoveUpdates,
 		onCycleNoteFade,
+		onCycleNoteRatchet,
 		onCyclePitchBend,
 		onMoveNotesBatch,
 		onRemoveNote,
@@ -416,10 +433,17 @@ export const KonvaPianoRollStage = ({
 			step,
 			pitch: row.pitch,
 			duration: initialDuration,
-			velocity: 0.9,
+			velocity: defaultNoteVelocity,
 			pitchBend: 0,
 		});
-		onPreviewPitch(row.pitch);
+		onPreviewPitch(row.pitch, {
+			id: "draw-preview",
+			step,
+			pitch: row.pitch,
+			duration: initialDuration,
+			velocity: defaultNoteVelocity,
+			pitchBend: 0,
+		});
 		drawingNoteRef.current = {
 			step,
 			pitch: row.pitch,
@@ -621,7 +645,7 @@ export const KonvaPianoRollStage = ({
 				? "not-allowed"
 				: activeTool === "slide"
 					? "ns-resize"
-					: activeTool === "fade"
+					: activeTool === "fade" || activeTool === "stutter"
 						? "pointer"
 						: activeTool === "move"
 							? "grab"
@@ -646,7 +670,7 @@ export const KonvaPianoRollStage = ({
 				{beatColumns.map((column) => (
 					<Rect
 						key={`beat-bg-${column.beat}`}
-						fill={column.beat % 2 === 0 ? "#06080e" : "#0d111a"}
+						fill={column.beat % 2 === 0 ? palette.beatEven : palette.beatOdd}
 						height={stageHeight}
 						width={column.width}
 						x={column.x}
@@ -657,9 +681,9 @@ export const KonvaPianoRollStage = ({
 				{rows.map((row, rowIndex) => {
 					const y = rowIndex * rowHeight;
 					const fill = row.isRoot
-						? "rgba(138, 96, 56, 0.55)"
+						? palette.rootRow
 						: !row.inScale
-							? "rgba(2, 4, 8, 0.52)"
+							? palette.outOfScaleRow
 							: undefined;
 					return (
 						<Group key={`row-bg-${row.pitch}`}>
@@ -674,12 +698,8 @@ export const KonvaPianoRollStage = ({
 							)}
 							<Line
 								points={[0, y + rowHeight, stageWidth, y + rowHeight]}
+								stroke={row.isRoot ? palette.rootRowLine : palette.rowLine}
 								strokeWidth={row.isRoot ? 1.2 : 1}
-								stroke={
-									row.isRoot
-										? "rgba(186, 134, 82, 0.55)"
-										: "rgba(51, 65, 85, 0.36)"
-								}
 							/>
 						</Group>
 					);
@@ -691,9 +711,7 @@ export const KonvaPianoRollStage = ({
 						points={[divider.x, 0, divider.x, stageHeight]}
 						strokeWidth={divider.isBeatBoundary ? 1.5 : 1}
 						stroke={
-							divider.isBeatBoundary
-								? "rgba(148, 163, 184, 0.35)"
-								: "rgba(51, 65, 85, 0.25)"
+							divider.isBeatBoundary ? palette.beatLine : palette.stepLine
 						}
 					/>
 				))}
@@ -727,14 +745,14 @@ export const KonvaPianoRollStage = ({
 				{isPlayingThisBar && (
 					<Group>
 						<Rect
-							fill="rgba(255, 255, 255, 0.08)"
+							fill={palette.playheadFill}
 							height={stageHeight}
 							width={stepWidth}
 							x={playbackStep * stepWidth}
 							y={0}
 						/>
 						<Line
-							stroke="#ffffff"
+							stroke={palette.playhead}
 							strokeWidth={2}
 							points={[
 								playbackStep * stepWidth,
@@ -774,7 +792,12 @@ export const KonvaPianoRollStage = ({
 						3,
 						Math.min(10, stepWidth - horizontalInset * 2)
 					);
-					const startX = note.step * stepWidth + horizontalInset;
+					// Micro-timing nudge is drawn as a small horizontal shift
+					const offsetPixels = (note.timingOffset ?? 0) * stepWidth;
+					// Quieter notes are drawn dimmer (velocity 0.1 → ~42%, 1.0 → 100%)
+					const velocityOpacity =
+						0.35 + 0.65 * clampValue(note.velocity, 0.1, 1);
+					const startX = note.step * stepWidth + horizontalInset + offsetPixels;
 					const endX = Math.max(
 						startX + minNoteSpan,
 						(note.step + note.duration) * stepWidth - horizontalInset
@@ -868,7 +891,7 @@ export const KonvaPianoRollStage = ({
 									setCursorMode("");
 									const node = event.target;
 									const targetStep = clampValue(
-										Math.round((node.x() - 2) / stepWidth),
+										Math.round((node.x() - 2 - offsetPixels) / stepWidth),
 										0,
 										stepsPerBar - 1
 									);
@@ -879,7 +902,7 @@ export const KonvaPianoRollStage = ({
 									);
 									const destinationRow = rows[targetRow];
 									node.position({
-										x: targetStep * stepWidth + 2,
+										x: targetStep * stepWidth + 2 + offsetPixels,
 										y: targetRow * rowHeight,
 									});
 									if (!destinationRow) {
@@ -916,7 +939,7 @@ export const KonvaPianoRollStage = ({
 												? "not-allowed"
 												: activeTool === "slide"
 													? "ns-resize"
-													: activeTool === "fade"
+													: activeTool === "fade" || activeTool === "stutter"
 														? "pointer"
 														: isMoveTool
 															? "grab"
@@ -943,8 +966,8 @@ export const KonvaPianoRollStage = ({
 										const isShiftPressed = Boolean(event.evt.shiftKey);
 										if (isSelectTool && isShiftPressed) {
 											if (isNoteSelected) {
-												setSelectedNoteIds((previous) =>
-													previous.filter((id) => id !== note.id)
+												setSelectedNoteIds(
+													selectedNoteIds.filter((id) => id !== note.id)
 												);
 												return;
 											}
@@ -1054,20 +1077,27 @@ export const KonvaPianoRollStage = ({
 									listening={false}
 									opacity={isNoteSelected ? 0.52 : 0.3}
 									points={haloPoints}
-									stroke={isNoteSelected ? "#c4b5fd" : undefined}
+									stroke={isNoteSelected ? palette.selectedNoteHalo : undefined}
 									strokeWidth={isNoteSelected ? 1 : 0}
 								/>
 								<Line
 									closed
 									fill={noteColor}
 									listening={false}
+									opacity={velocityOpacity}
 									points={corePoints}
-									stroke={isNoteSelected ? "#ffffff" : undefined}
-									strokeWidth={isNoteSelected ? 1.8 : 0}
+									stroke={
+										isNoteSelected
+											? palette.selectedNoteOutline
+											: palette.noteOutline
+									}
+									strokeWidth={
+										isNoteSelected ? 1.8 : palette.noteOutline ? 0.75 : 0
+									}
 								/>
 								{note.pitchBend !== 0 && (
 									<Text
-										fill="#fef08a"
+										fill={palette.bendLabel}
 										fontFamily="monospace"
 										fontSize={9}
 										fontStyle="bold"
@@ -1077,9 +1107,21 @@ export const KonvaPianoRollStage = ({
 										y={Math.max(1, localStartCenterY - 11)}
 									/>
 								)}
+								{(note.ratchet ?? 1) > 1 && (
+									<Text
+										fill={palette.ratchetLabel}
+										fontFamily="monospace"
+										fontSize={8}
+										fontStyle="bold"
+										listening={false}
+										text={`x${note.ratchet ?? 1}`}
+										x={Math.max(4, localEndX / 2 - 6)}
+										y={Math.max(1, localStartCenterY + 3)}
+									/>
+								)}
 								{note.fadeMode && note.fadeMode !== "none" && (
 									<Text
-										fill="#e0f2fe"
+										fill={palette.fadeLabel}
 										fontFamily="monospace"
 										fontSize={8}
 										fontStyle="bold"
@@ -1087,6 +1129,18 @@ export const KonvaPianoRollStage = ({
 										text={note.fadeMode === "fadeIn" ? "IN" : "OUT"}
 										x={Math.max(4, localEndX - 22)}
 										y={Math.max(1, localEndCenterY - 10)}
+									/>
+								)}
+								{showNoteVelocityLabels && localEndX >= 15 && (
+									<Text
+										fill={palette.velocityLabel}
+										fontFamily="Chakra Petch, monospace"
+										fontSize={9}
+										fontStyle="bold"
+										listening={false}
+										text={String(Math.round(note.velocity * 100))}
+										x={3}
+										y={Math.max(1, localStartCenterY - 4.5)}
 									/>
 								)}
 							</Group>
@@ -1098,7 +1152,7 @@ export const KonvaPianoRollStage = ({
 									fill={noteColor}
 									hitStrokeWidth={12}
 									radius={4}
-									stroke="#020617"
+									stroke={palette.laneStemOutline}
 									strokeWidth={1.5}
 									x={endX - 3}
 									y={endCenterY}
@@ -1118,7 +1172,7 @@ export const KonvaPianoRollStage = ({
 										});
 									}}
 									onDragMove={(event): void => {
-										const handleX = event.target.x() + 5;
+										const handleX = event.target.x() + 5 - offsetPixels;
 										const targetEndStep = clampValue(
 											Math.round(handleX / stepWidth) - 1,
 											note.step,
@@ -1147,10 +1201,10 @@ export const KonvaPianoRollStage = ({
 				{selectionBounds && (
 					<Rect
 						dash={[5, 3]}
-						fill="rgba(167, 139, 250, 0.2)"
+						fill={palette.selectionFill}
 						height={Math.max(1, selectionBounds.height)}
 						listening={false}
-						stroke="#c4b5fd"
+						stroke={palette.selectionStroke}
 						strokeWidth={1.5}
 						width={Math.max(1, selectionBounds.width)}
 						x={selectionBounds.x}

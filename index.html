@@ -6,8 +6,22 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#090d16" />
+    <meta name="theme-color" content="#04070d" />
     <title>UltraBeep — Mobile Chiptune Studio</title>
+    <script>
+      // Apply the saved studio theme before first paint (no flash of the wrong theme)
+      try {
+        var saved = JSON.parse(
+          localStorage.getItem("ultrabeep-chiptune-store-v1") || "{}"
+        );
+        var theme = saved && saved.state && saved.state.themeMode;
+        if (theme === "neon" || theme === "dark" || theme === "light") {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch (error) {
+        // Storage unavailable: keep the default Neon theme
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
