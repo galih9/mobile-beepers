@@ -1,3 +1,4 @@
+import { Cog6ToothIcon } from "@heroicons/react/24/outline";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -18,7 +19,10 @@ import { PianoRollEditor } from "./PianoRollEditor";
 import { ProjectManagerDialog } from "./ProjectManagerDialog";
 import { SfxCreatorBanner } from "./SfxCreatorBanner";
 import { SongMatrixPanel } from "./SongMatrixPanel";
-import { ThemeSwitch } from "./ThemeSwitch";
+import {
+	StudioSettingsDialog,
+	type SettingsSection,
+} from "./StudioSettingsDialog";
 import { TransportHeader } from "./TransportHeader";
 
 const MOBILE_TABS: Array<{ id: MobileWorkspaceTab; label: string }> = [
@@ -31,6 +35,9 @@ const MOBILE_TABS: Array<{ id: MobileWorkspaceTab; label: string }> = [
 export const ChiptuneStudioPage = (): FunctionComponent => {
 	const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 	const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const [settingsSection, setSettingsSection] =
+		useState<SettingsSection>("mode");
 	const [demoBrowserTab, setDemoBrowserTab] = useState<DemoBrowserTab | null>(
 		null
 	);
@@ -141,11 +148,7 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 			const isCtrlOrMeta = event.ctrlKey || event.metaKey;
 
 			// Undo: Cmd+Z / Ctrl+Z (without shift)
-			if (
-				isCtrlOrMeta &&
-				!event.shiftKey &&
-				event.key.toLowerCase() === "z"
-			) {
+			if (isCtrlOrMeta && !event.shiftKey && event.key.toLowerCase() === "z") {
 				event.preventDefault();
 				useChiptuneStore.getState().undo();
 				return;
@@ -153,9 +156,7 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 
 			// Redo: Cmd+Shift+Z / Ctrl+Shift+Z / Cmd+Y / Ctrl+Y
 			if (
-				(isCtrlOrMeta &&
-					event.shiftKey &&
-					event.key.toLowerCase() === "z") ||
+				(isCtrlOrMeta && event.shiftKey && event.key.toLowerCase() === "z") ||
 				(isCtrlOrMeta && event.key.toLowerCase() === "y")
 			) {
 				event.preventDefault();
@@ -243,6 +244,10 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 					onOpenResetModal={(): void => {
 						setIsResetModalOpen(true);
 					}}
+					onOpenSettings={(section = "mode"): void => {
+						setSettingsSection(section);
+						setIsSettingsOpen(true);
+					}}
 				/>
 
 				{studioMode === "sfx" && <SfxCreatorBanner />}
@@ -275,7 +280,17 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 						<span className="truncate font-mono text-[10px] font-semibold text-slate-400">
 							{song.bpm} BPM · {song.rootKey}
 						</span>
-						<ThemeSwitch />
+						<button
+							aria-label="Open settings: mode, theme and toolbar"
+							className="inline-flex size-6 items-center justify-center rounded text-slate-300 hover:bg-slate-800 hover:text-white"
+							type="button"
+							onClick={(): void => {
+								setSettingsSection("mode");
+								setIsSettingsOpen(true);
+							}}
+						>
+							<Cog6ToothIcon aria-hidden="true" className="size-4" />
+						</button>
 					</div>
 				</nav>
 
@@ -388,6 +403,14 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 					}}
 					onRequestReset={(): void => {
 						setIsResetModalOpen(true);
+					}}
+				/>
+
+				<StudioSettingsDialog
+					initialSection={settingsSection}
+					isOpen={isSettingsOpen}
+					onClose={(): void => {
+						setIsSettingsOpen(false);
 					}}
 				/>
 

@@ -7,6 +7,8 @@ import type {
 	InstrumentConfiguration,
 	LoopMode,
 	MobileWorkspaceTab,
+	ModernInstrumentSettings,
+	NoteArticulation,
 	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
@@ -16,6 +18,11 @@ import type {
 	StudioMode,
 } from "../types/music";
 import type { ThemeMode } from "../constants/themes";
+import type {
+	ToolbarItemId,
+	ToolbarPreset,
+	ToolbarVisibility,
+} from "../constants/toolbarItems";
 import type { HumanizeOptions, NotePropertyUpdate } from "./songHelpers";
 
 /** User-resized pane sizes in px (null = default responsive size) */
@@ -29,6 +36,7 @@ export interface PersistedChiptuneState {
 	song: SongProject;
 	musicProjectBackup?: SongProject | null;
 	sfxProjectBackup?: SongProject | null;
+	modernProjectBackup?: SongProject | null;
 	savedSongs: Array<SongProject>;
 	scaleLockOnly: boolean;
 	showGhostNotes: boolean;
@@ -36,6 +44,7 @@ export interface PersistedChiptuneState {
 	defaultNoteVelocity?: number;
 	showVelocityLane?: boolean;
 	themeMode?: ThemeMode;
+	toolbarVisibility?: ToolbarVisibility;
 	paneLayout?: PaneLayout;
 	showNoteVelocityLabels?: boolean;
 	followPlayhead: boolean;
@@ -46,6 +55,8 @@ export interface ChiptuneStoreState {
 	song: SongProject;
 	musicProjectBackup: SongProject | null;
 	sfxProjectBackup: SongProject | null;
+	/** Project parked while another mode is open (each mode keeps its own) */
+	modernProjectBackup: SongProject | null;
 	savedSongs: Array<SongProject>;
 	selectedChannelIndex: number;
 	selectedBarIndex: number;
@@ -60,6 +71,10 @@ export interface ChiptuneStoreState {
 	selectedNoteIds: Array<string>;
 	/** Studio colour theme (kept across resets) */
 	themeMode: ThemeMode;
+	/** Which optional toolbar controls are shown (kept across resets) */
+	toolbarVisibility: ToolbarVisibility;
+	/** Articulation given to newly drawn notes (null = normal) */
+	defaultNoteArticulation: NoteArticulation | null;
 	/** Resized pane sizes (kept across resets) */
 	paneLayout: PaneLayout;
 	/** Print each note's volume (%) on the note in the piano roll */
@@ -104,6 +119,9 @@ export interface ChiptuneStoreState {
 	toggleVelocityLane: () => void;
 	setSelectedNoteIds: (noteIds: Array<string>) => void;
 	setThemeMode: (themeMode: ThemeMode) => void;
+	setToolbarItemVisible: (itemId: ToolbarItemId, visible: boolean) => void;
+	applyToolbarPreset: (preset: ToolbarPreset) => void;
+	setDefaultNoteArticulation: (articulation: NoteArticulation | null) => void;
 	setPaneLayout: (updates: Partial<PaneLayout>) => void;
 	toggleNoteVelocityLabels: () => void;
 	setPianoRollZoom: (zoom: number) => void;
@@ -192,6 +210,11 @@ export interface ChiptuneStoreState {
 		updates: Partial<InstrumentConfiguration>
 	) => void;
 	applyInstrumentPreset: (channelIndex: number, presetId: string) => void;
+	/** Merge modern engine / FX settings on a modern channel */
+	updateModernSettings: (
+		channelIndex: number,
+		updates: Partial<ModernInstrumentSettings>
+	) => void;
 
 	setStudioMode: (mode: StudioMode) => void;
 	loadSfxPreset: (presetId: string) => void;

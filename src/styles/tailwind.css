@@ -52,9 +52,9 @@
 
 /*
  * ─── Themes ─────────────────────────────────────────────────────────────────
- * Neon (default) keeps Tailwind's stock slate + cyan. Dark and Light re-tint
- * the colour ramps the app uses, so every existing utility class follows the
- * theme. Hardware tokens (chassis, keys, LCD) are set per theme below.
+ * Neon (default) keeps Tailwind's stock slate + cyan. Every other theme
+ * re-tints the colour ramps the app uses, so every existing utility class
+ * follows the theme. Hardware tokens (chassis, keys, LCD) are set per theme.
  */
 :root {
 	color-scheme: dark;
@@ -190,7 +190,10 @@
 	--color-amber-950: oklch(28.6% 0.066 53.813);
 }
 
-:root[data-theme="light"] {
+/* Inverted colour ramps shared by every light theme (Light, Frost, Famicom) */
+:root[data-theme="light"],
+:root[data-theme="frost"],
+:root[data-theme="famicom"] {
 	--color-slate-50: #191714;
 	--color-slate-100: #24211d;
 	--color-slate-200: #332f2a;
@@ -392,6 +395,292 @@
 	--color-white: #1f1c19;
 	--color-black: #cfccc4;
 }
+
+/*
+ * ─── Added themes: Synthwave, Phosphor, Crimson (dark) · Frost, Famicom (light) ───
+ * Light themes reuse the inverted colour ramps of the Light theme (see the
+ * shared selector above) and only re-tint slate, cyan, white and black here.
+ */
+:root[data-theme="synthwave"] {
+	color-scheme: dark;
+	--accent: #ff4fd8;
+	--studio-bg: #0f0618;
+	--chassis: #07020d;
+	--module-edge: rgba(255, 79, 216, 0.2);
+	--module-hi: rgba(255, 190, 250, 0.06);
+	--module-shadow: 0 10px 24px rgba(0, 0, 0, 0.6), 0 0 18px rgba(255, 79, 216, 0.05);
+	--well-shadow: rgba(0, 0, 0, 0.6);
+	--key-hi: rgba(255, 235, 255, 0.26);
+
+	--lcd-bg: #1c0626;
+	--lcd-bezel: #000000;
+	--lcd-ink: #ff5ed8;
+	--lcd-ink-2: #5ef0ff;
+	--lcd-ghost: rgba(255, 94, 216, 0.12);
+	--lcd-grid: rgba(0, 0, 0, 0.36);
+	--lcd-glow: 0 0 7px rgba(255, 60, 210, 0.6);
+
+	--slider-track: #2a1a40;
+	--slider-thumb: #fff0fd;
+	--backdrop: rgba(7, 2, 13, 0.8);
+	--scrollbar-thumb: #5b4478;
+	--scrollbar-track: #0f0618;
+}
+
+:root[data-theme="synthwave"] {
+	--color-slate-50: oklch(98.4% 0.035 300);
+	--color-slate-100: oklch(96.8% 0.035 300);
+	--color-slate-200: oklch(92.9% 0.035 300);
+	--color-slate-300: oklch(86.9% 0.035 300);
+	--color-slate-400: oklch(72% 0.035 300);
+	--color-slate-500: oklch(57% 0.035 300);
+	--color-slate-600: oklch(45% 0.035 300);
+	--color-slate-700: oklch(37% 0.035 300);
+	--color-slate-800: #2a1a40;
+	--color-slate-900: #1a0e29;
+	--color-slate-950: #0f0618;
+	--color-cyan-50: oklch(97.5% 0.025 345);
+	--color-cyan-100: oklch(95% 0.056 345);
+	--color-cyan-200: oklch(90.5% 0.112 345);
+	--color-cyan-300: oklch(84% 0.175 345);
+	--color-cyan-400: oklch(76% 0.225 345);
+	--color-cyan-500: oklch(69% 0.25 345);
+	--color-cyan-600: oklch(61% 0.25 345);
+	--color-cyan-700: oklch(52% 0.225 345);
+	--color-cyan-800: oklch(44% 0.188 345);
+	--color-cyan-900: oklch(38% 0.15 345);
+	--color-cyan-950: oklch(26% 0.1 345);
+}
+
+:root[data-theme="phosphor"] {
+	color-scheme: dark;
+	--accent: #22e06a;
+	--studio-bg: #020703;
+	--chassis: #000301;
+	--module-edge: rgba(57, 255, 122, 0.18);
+	--module-hi: rgba(180, 255, 200, 0.05);
+	--module-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+	--well-shadow: rgba(0, 0, 0, 0.65);
+	--key-hi: rgba(220, 255, 230, 0.22);
+
+	--lcd-bg: #021006;
+	--lcd-bezel: #000000;
+	--lcd-ink: #39ff7a;
+	--lcd-ink-2: #b8ffcc;
+	--lcd-ghost: rgba(57, 255, 122, 0.1);
+	--lcd-grid: rgba(0, 0, 0, 0.42);
+	--lcd-glow: 0 0 7px rgba(40, 255, 110, 0.6);
+
+	--slider-track: #143020;
+	--slider-thumb: #eafff0;
+	--backdrop: rgba(0, 3, 1, 0.82);
+	--scrollbar-thumb: #2f5a3c;
+	--scrollbar-track: #020703;
+}
+
+:root[data-theme="phosphor"] {
+	--color-slate-50: oklch(98.4% 0.03 150);
+	--color-slate-100: oklch(96.8% 0.03 150);
+	--color-slate-200: oklch(92.9% 0.03 150);
+	--color-slate-300: oklch(86.9% 0.03 150);
+	--color-slate-400: oklch(72% 0.03 150);
+	--color-slate-500: oklch(57% 0.03 150);
+	--color-slate-600: oklch(45% 0.03 150);
+	--color-slate-700: oklch(37% 0.03 150);
+	--color-slate-800: #163021;
+	--color-slate-900: #0a160d;
+	--color-slate-950: #020703;
+	--color-cyan-50: oklch(97.5% 0.021 150);
+	--color-cyan-100: oklch(95% 0.047 150);
+	--color-cyan-200: oklch(90.5% 0.095 150);
+	--color-cyan-300: oklch(84% 0.147 150);
+	--color-cyan-400: oklch(76% 0.189 150);
+	--color-cyan-500: oklch(69% 0.21 150);
+	--color-cyan-600: oklch(61% 0.21 150);
+	--color-cyan-700: oklch(52% 0.189 150);
+	--color-cyan-800: oklch(44% 0.158 150);
+	--color-cyan-900: oklch(38% 0.126 150);
+	--color-cyan-950: oklch(26% 0.084 150);
+}
+
+:root[data-theme="crimson"] {
+	color-scheme: dark;
+	--accent: #ef3b3b;
+	--studio-bg: #0b0505;
+	--chassis: #040101;
+	--module-edge: rgba(255, 60, 60, 0.18);
+	--module-hi: rgba(255, 210, 200, 0.05);
+	--module-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+	--well-shadow: rgba(0, 0, 0, 0.65);
+	--key-hi: rgba(255, 235, 230, 0.22);
+
+	--lcd-bg: #120000;
+	--lcd-bezel: #000000;
+	--lcd-ink: #ff3030;
+	--lcd-ink-2: #ff9a80;
+	--lcd-ghost: rgba(255, 48, 48, 0.1);
+	--lcd-grid: rgba(0, 0, 0, 0.45);
+	--lcd-glow: 0 0 7px rgba(255, 30, 30, 0.6);
+
+	--slider-track: #2c1616;
+	--slider-thumb: #fff1ee;
+	--backdrop: rgba(4, 1, 1, 0.82);
+	--scrollbar-thumb: #5e3333;
+	--scrollbar-track: #0b0505;
+}
+
+:root[data-theme="crimson"] {
+	--color-slate-50: oklch(98.4% 0.025 20);
+	--color-slate-100: oklch(96.8% 0.025 20);
+	--color-slate-200: oklch(92.9% 0.025 20);
+	--color-slate-300: oklch(86.9% 0.025 20);
+	--color-slate-400: oklch(72% 0.025 20);
+	--color-slate-500: oklch(57% 0.025 20);
+	--color-slate-600: oklch(45% 0.025 20);
+	--color-slate-700: oklch(37% 0.025 20);
+	--color-slate-800: #2f1a1a;
+	--color-slate-900: #1a0d0d;
+	--color-slate-950: #0b0505;
+	--color-cyan-50: oklch(97.5% 0.022 25);
+	--color-cyan-100: oklch(95% 0.05 25);
+	--color-cyan-200: oklch(90.5% 0.099 25);
+	--color-cyan-300: oklch(84% 0.154 25);
+	--color-cyan-400: oklch(76% 0.198 25);
+	--color-cyan-500: oklch(69% 0.22 25);
+	--color-cyan-600: oklch(61% 0.22 25);
+	--color-cyan-700: oklch(52% 0.198 25);
+	--color-cyan-800: oklch(44% 0.165 25);
+	--color-cyan-900: oklch(38% 0.132 25);
+	--color-cyan-950: oklch(26% 0.088 25);
+	--color-rose-50: oklch(97.5% 0.02 350);
+	--color-rose-100: oklch(95% 0.045 350);
+	--color-rose-200: oklch(90.5% 0.09 350);
+	--color-rose-300: oklch(84% 0.14 350);
+	--color-rose-400: oklch(76% 0.18 350);
+	--color-rose-500: oklch(69% 0.2 350);
+	--color-rose-600: oklch(61% 0.2 350);
+	--color-rose-700: oklch(52% 0.18 350);
+	--color-rose-800: oklch(44% 0.15 350);
+	--color-rose-900: oklch(38% 0.12 350);
+	--color-rose-950: oklch(26% 0.08 350);
+}
+
+:root[data-theme="frost"] {
+	color-scheme: light;
+	--accent: #1f6fb2;
+	--studio-bg: #dfe8ef;
+	--chassis: #c3d0db;
+	--module-edge: #a7b7c6;
+	--module-hi: rgba(255, 255, 255, 0.8);
+	--module-shadow:
+		0 2px 0 rgba(70, 90, 110, 0.3), 0 8px 18px rgba(50, 70, 90, 0.16);
+	--well-shadow: rgba(50, 70, 90, 0.3);
+	--key-hi: rgba(255, 255, 255, 0.6);
+	--key-edge: rgba(50, 70, 90, 0.45);
+	--key-press: rgba(50, 70, 90, 0.32);
+	--led-glow: none;
+
+	--lcd-bg: #bcdcf0;
+	--lcd-bezel: #5b6b7d;
+	--lcd-inset: rgba(11, 58, 92, 0.4);
+	--lcd-ink: #0b3a5c;
+	--lcd-ink-2: #2a6f9e;
+	--lcd-ghost: rgba(11, 58, 92, 0.1);
+	--lcd-grid: rgba(11, 58, 92, 0.08);
+	--lcd-glow: none;
+
+	--slider-track: #b9c7d3;
+	--slider-thumb: #f8fbfd;
+	--backdrop: rgba(60, 80, 100, 0.4);
+	--scrollbar-thumb: #8a9db0;
+	--scrollbar-track: #dfe8ef;
+}
+
+:root[data-theme="frost"] {
+	--color-slate-50: oklch(22% 0.025 240);
+	--color-slate-100: oklch(26% 0.025 240);
+	--color-slate-200: oklch(32% 0.025 240);
+	--color-slate-300: oklch(40% 0.025 240);
+	--color-slate-400: oklch(50% 0.025 240);
+	--color-slate-500: oklch(60% 0.025 240);
+	--color-slate-600: oklch(68% 0.025 240);
+	--color-slate-700: oklch(76% 0.025 240);
+	--color-slate-800: #b9c7d3;
+	--color-slate-900: #eef3f7;
+	--color-slate-950: #dfe8ef;
+	--color-cyan-50: oklch(26% 0.064 250);
+	--color-cyan-100: oklch(38% 0.096 250);
+	--color-cyan-200: oklch(44% 0.12 250);
+	--color-cyan-300: oklch(52% 0.144 250);
+	--color-cyan-400: oklch(61% 0.16 250);
+	--color-cyan-500: oklch(69% 0.16 250);
+	--color-cyan-600: oklch(76% 0.144 250);
+	--color-cyan-700: oklch(84% 0.112 250);
+	--color-cyan-800: oklch(90.5% 0.072 250);
+	--color-cyan-900: oklch(95% 0.036 250);
+	--color-cyan-950: oklch(97.5% 0.016 250);
+	--color-white: #0f1e2d;
+	--color-black: #cdd8e1;
+}
+
+:root[data-theme="famicom"] {
+	color-scheme: light;
+	--accent: #9b1c22;
+	--studio-bg: #e9e1cf;
+	--chassis: #d3c6aa;
+	--module-edge: #b7a685;
+	--module-hi: rgba(255, 252, 240, 0.8);
+	--module-shadow:
+		0 2px 0 rgba(110, 85, 50, 0.32), 0 8px 18px rgba(90, 65, 35, 0.16);
+	--well-shadow: rgba(90, 65, 35, 0.32);
+	--key-hi: rgba(255, 252, 240, 0.6);
+	--key-edge: rgba(90, 65, 35, 0.5);
+	--key-press: rgba(90, 65, 35, 0.35);
+	--led-glow: none;
+
+	--lcd-bg: #3a0d0d;
+	--lcd-bezel: #2a160c;
+	--lcd-inset: rgba(0, 0, 0, 0.6);
+	--lcd-ink: #ffd27a;
+	--lcd-ink-2: #ffefc4;
+	--lcd-ghost: rgba(255, 210, 122, 0.1);
+	--lcd-grid: rgba(0, 0, 0, 0.3);
+	--lcd-glow: 0 0 5px rgba(255, 190, 80, 0.45);
+
+	--slider-track: #cbbd9f;
+	--slider-thumb: #fffaf0;
+	--backdrop: rgba(90, 70, 45, 0.42);
+	--scrollbar-thumb: #a8977a;
+	--scrollbar-track: #e9e1cf;
+}
+
+:root[data-theme="famicom"] {
+	--color-slate-50: oklch(22% 0.03 70);
+	--color-slate-100: oklch(26% 0.03 70);
+	--color-slate-200: oklch(32% 0.03 70);
+	--color-slate-300: oklch(40% 0.03 70);
+	--color-slate-400: oklch(50% 0.03 70);
+	--color-slate-500: oklch(60% 0.03 70);
+	--color-slate-600: oklch(68% 0.03 70);
+	--color-slate-700: oklch(76% 0.03 70);
+	--color-slate-800: #cbbd9f;
+	--color-slate-900: #f4eee0;
+	--color-slate-950: #e9e1cf;
+	--color-cyan-50: oklch(26% 0.076 25);
+	--color-cyan-100: oklch(38% 0.114 25);
+	--color-cyan-200: oklch(44% 0.142 25);
+	--color-cyan-300: oklch(52% 0.171 25);
+	--color-cyan-400: oklch(61% 0.19 25);
+	--color-cyan-500: oklch(69% 0.19 25);
+	--color-cyan-600: oklch(76% 0.171 25);
+	--color-cyan-700: oklch(84% 0.133 25);
+	--color-cyan-800: oklch(90.5% 0.085 25);
+	--color-cyan-900: oklch(95% 0.043 25);
+	--color-cyan-950: oklch(97.5% 0.019 25);
+	--color-white: #2a160c;
+	--color-black: #ddd2b9;
+}
+
 
 @media (pointer: coarse) {
 	:root {
@@ -805,4 +1094,64 @@ input[type="checkbox"].checkbox-custom:disabled {
 .gear-switch input:focus-visible + label {
 	outline: 2px solid var(--accent);
 	outline-offset: 1px;
+}
+
+/* ─── Settings toggle switch (native checkbox, role="switch") ─────────────── */
+input[type="checkbox"].settings-switch {
+	appearance: none;
+	position: relative;
+	flex-shrink: 0;
+	inline-size: 2.25rem;
+	block-size: 1.25rem;
+	margin: 0;
+	border-radius: 999px;
+	background-color: var(--color-slate-800);
+	box-shadow: inset 0 1px 3px var(--well-shadow);
+	cursor: pointer;
+}
+
+input[type="checkbox"].settings-switch::before {
+	content: "";
+	position: absolute;
+	inset-block-start: 2px;
+	inset-inline-start: 2px;
+	inline-size: calc(1.25rem - 4px);
+	aspect-ratio: 1;
+	border-radius: 999px;
+	background-color: var(--color-slate-400);
+	box-shadow:
+		inset 0 1px 0 var(--key-hi),
+		0 1px 0 var(--key-edge);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	input[type="checkbox"].settings-switch,
+	input[type="checkbox"].settings-switch::before {
+		transition:
+			background-color 140ms ease,
+			translate 160ms cubic-bezier(0.3, 1.4, 0.6, 1);
+	}
+}
+
+input[type="checkbox"].settings-switch:checked {
+	background-color: var(--accent);
+}
+
+input[type="checkbox"].settings-switch:checked::before {
+	translate: 1rem 0;
+	background-color: var(--slider-thumb);
+}
+
+input[type="checkbox"].settings-switch:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+	input[type="checkbox"].settings-switch {
+		border: 1px solid CanvasText;
+	}
+	input[type="checkbox"].settings-switch::before {
+		background-color: CanvasText;
+	}
 }

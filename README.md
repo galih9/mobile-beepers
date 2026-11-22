@@ -46,6 +46,21 @@ Built with type safety, scalability, and developer experience in mind. A batteri
 
 A more detailed list of the included packages can be found in the [Installed Packages](#installed-packages) section. Packages not shown above include Devtools, ui helper libraries, and eslint plugins/configs.
 
+## UltraBeep app modes
+
+Pick the app mode in **Settings → Mode** (the small mode badge next to Play opens it too). Each mode keeps its own project.
+
+- **Modern Music Maker** — sampled grand piano, string section and harp; supersaw, pad, pluck, soft lead, FM e-piano and bells; reese, sub and 808 bass; jungle-break and punchy drum kits; a **Sampler** and a **Break Slicer** for your own sounds (stored in the browser's IndexedDB). Every channel has low cut, drive, chorus, tempo-synced ping-pong delay, plate reverb and kick sidechain, into a glue-compressed master bus.
+- **Chiptune Composer** — the original retro synth.
+- **SFX Creator** — retro sound effects and jingles.
+
+The modern-mode samples come from npm packages and are copied into `public/samples/` (git-ignored) when the dev server or a build starts — run `pnpm install` after pulling.
+
+Sample credits:
+
+- Grand piano: Salamander Grand Piano V3 by Alexander Holm (CC-BY 3.0), via `@audio-samples/piano-mp3-velocity8`
+- Violin, cello, harp: tonejs-instruments by Nicholaus Brosowsky (CC-BY 3.0), via `tonejs-instrument-*-mp3`
+
 ## Requirements
 
 - [NodeJS 24+](https://nodejs.org/en)

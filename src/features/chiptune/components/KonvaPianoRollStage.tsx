@@ -2,11 +2,13 @@ import type Konva from "konva";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { FunctionComponent } from "../../../common/types";
+import { ARTICULATION_LABELS, ORNAMENT_LABELS } from "../audio/articulation";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import { useCanvasPalette } from "./useCanvasPalette";
 import type {
 	Channel,
 	EditorTool,
+	NoteArticulation,
 	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
@@ -33,6 +35,8 @@ interface KonvaPianoRollStageProps {
 	activeTool: EditorTool;
 	defaultNoteDuration: number;
 	defaultNoteVelocity: number;
+	/** Articulation given to newly drawn notes */
+	defaultNoteArticulation?: NoteArticulation;
 	onAddOrReplaceNote: (noteInput: Omit<NoteEvent, "id">) => void;
 	onRemoveNote: (step: number, pitch: number) => void;
 	onResizeNote: (step: number, pitch: number, duration: number) => void;
@@ -233,6 +237,7 @@ export const KonvaPianoRollStage = ({
 	activeTool,
 	defaultNoteDuration,
 	defaultNoteVelocity,
+	defaultNoteArticulation,
 	onAddOrReplaceNote,
 	onRemoveNote,
 	onResizeNote,
@@ -435,6 +440,9 @@ export const KonvaPianoRollStage = ({
 			duration: initialDuration,
 			velocity: defaultNoteVelocity,
 			pitchBend: 0,
+			...(defaultNoteArticulation
+				? { articulation: defaultNoteArticulation }
+				: {}),
 		});
 		onPreviewPitch(row.pitch, {
 			id: "draw-preview",
@@ -443,6 +451,7 @@ export const KonvaPianoRollStage = ({
 			duration: initialDuration,
 			velocity: defaultNoteVelocity,
 			pitchBend: 0,
+			articulation: defaultNoteArticulation,
 		});
 		drawingNoteRef.current = {
 			step,
@@ -1131,6 +1140,23 @@ export const KonvaPianoRollStage = ({
 										y={Math.max(1, localEndCenterY - 10)}
 									/>
 								)}
+								{(note.articulation || note.ornament) &&
+									localEndX >= (showNoteVelocityLabels ? 34 : 16) && (
+										<Text
+											fill={palette.articulationLabel}
+											fontFamily="Chakra Petch, sans-serif"
+											fontSize={10}
+											fontStyle="bold"
+											listening={false}
+											x={showNoteVelocityLabels ? 21 : 4}
+											y={Math.max(1, localStartCenterY - 5.5)}
+											text={`${
+												note.articulation
+													? ARTICULATION_LABELS[note.articulation].mark
+													: ""
+											}${note.ornament ? ORNAMENT_LABELS[note.ornament].mark : ""}`}
+										/>
+									)}
 								{showNoteVelocityLabels && localEndX >= 15 && (
 									<Text
 										fill={palette.velocityLabel}

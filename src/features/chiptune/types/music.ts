@@ -31,6 +31,10 @@ export type WaveformType =
 	| "sawtooth"
 	| "fm"
 	| "supersaw"
+	| "piano"
+	| "strings"
+	| "choir"
+	| "sub808"
 	| "retroKit";
 
 export type ArpMode =
@@ -59,9 +63,116 @@ export type NoteBendStyle = "late" | "early" | "continuous";
 
 export type NoteFadeMode = "none" | "fadeIn" | "fadeOut";
 
+/**
+ * How a note is played (its "articulation"):
+ * - staccato: short and detached (~45% of its written length)
+ * - tenuto: held for its full length with a little weight, no decay dip
+ * - accent: louder with a brighter, harder attack
+ * - marcato: strongest accent, slightly detached
+ * - legato: slurred from the previous touching note — no re-attack, quick glide
+ *   from the previous pitch (mono-synth / 303-style slide)
+ * undefined = normal (plays as written).
+ */
+export type NoteArticulation =
+	| "staccato"
+	| "tenuto"
+	| "accent"
+	| "marcato"
+	| "legato";
+
+/**
+ * Ornaments decorate a note with fast neighbour notes, using the scale step
+ * above / below in the song key:
+ * - grace: a quick note one scale step below that flicks into the main note
+ * - mordent: main → upper neighbour → main, then hold
+ * - trill: rapid alternation with the upper neighbour for the whole note
+ */
+export type NoteOrnament = "grace" | "mordent" | "trill";
+
 export type LoopMode = "song" | "bar" | "once";
 
-export type StudioMode = "music" | "sfx";
+/**
+ * App mode (picked in Settings → Mode):
+ * - modern: modern music maker — sampled piano / strings, supersaws, reese and
+ *   sub bass, punchy kits, your own samples and break slicing, studio FX
+ * - music: the retro chiptune composer
+ * - sfx: retro SFX & short jingle creator
+ */
+export type StudioMode = "modern" | "music" | "sfx";
+
+/** Sound engine used by songs. undefined = "chiptune" (older saves). */
+export type SongEngine = "chiptune" | "modern";
+
+/**
+ * Modern-mode sound engines:
+ * - grandPiano / strings / harp: real recorded samples (Salamander grand,
+ *   violin + cello section, concert harp)
+ * - superSaw / pad / pluck / softLead / ePiano / bell: polyphonic synths
+ * - reeseBass / subBass: bass synths
+ * - drumKit / breakKit: synthesized modern kits on the 8 drum pads
+ * - sampler: your own sample played chromatically
+ * - slicer: your own drum break chopped into equal slices (one per key)
+ */
+export type ModernEngine =
+	| "grandPiano"
+	| "strings"
+	| "harp"
+	| "superSaw"
+	| "pad"
+	| "pluck"
+	| "softLead"
+	| "ePiano"
+	| "bell"
+	| "reeseBass"
+	| "subBass"
+	| "drumKit"
+	| "breakKit"
+	| "sampler"
+	| "slicer";
+
+/** Tempo-synced echo time */
+export type DelayDivision = "32n" | "16n" | "8n" | "8n." | "4n";
+
+export interface ModernInstrumentSettings {
+	engine: ModernEngine;
+	/** Low-pass filter cutoff in Hz (60 to 18000) */
+	cutoff: number;
+	/** Filter resonance / Q (0.5 to 14) */
+	resonance: number;
+	/** How far a filter envelope opens the cutoff on each note, in octaves (0 to 6) */
+	filterEnv: number;
+	/** Unison detune spread in cents for saw engines (0 to 60) */
+	spread: number;
+	/** Coarse tune in semitones (-24 to +24). Drum kits: pitch of the whole kit */
+	tune: number;
+	/** Warm tube-style saturation (0 = clean, 1 = heavy) */
+	drive: number;
+	/** Stereo chorus wet amount (0 to 1) */
+	chorus: number;
+	/** Tempo-synced stereo echo send (0 to 1) */
+	delayMix: number;
+	delayDivision: DelayDivision;
+	/** Echo feedback (0 to 0.85) */
+	delayFeedback: number;
+	/** Send into the shared plate / hall reverb (0 to 1) */
+	reverbSend: number;
+	/** Sidechain ducking from the kick (0 = off, 1 = deep pump) */
+	sidechain: number;
+	/** High-pass "low cut" in Hz (20 to 1200) — keeps pads out of the bass */
+	lowCut: number;
+	/** User sample id (sampler / slicer engines) */
+	sampleId?: string;
+	/** Display name of the user sample */
+	sampleName?: string;
+	/** Slicer: number of equal slices (4, 8, 16 or 32) */
+	sliceCount?: number;
+	/** Slicer: how many bars the whole break lasts (used by fit-to-tempo) */
+	sliceBars?: number;
+	/** Slicer: re-pitch the break so it lasts exactly sliceBars at the song tempo */
+	fitToTempo?: boolean;
+	/** Sampler: MIDI note at which the sample plays at its original pitch */
+	sampleRootMidi?: number;
+}
 
 export type SfxCategory = "combat" | "feedback" | "jingle";
 
@@ -107,6 +218,10 @@ export interface NoteEvent {
 	 * Used to humanize melodies; 0 / undefined = exactly on the grid.
 	 */
 	timingOffset?: number;
+	/** How the note is played (staccato, tenuto, accent, marcato, legato). undefined = normal */
+	articulation?: NoteArticulation;
+	/** Optional ornament (grace note, mordent, trill) */
+	ornament?: NoteOrnament;
 }
 
 export interface NoteVelocityUpdate {
@@ -156,6 +271,22 @@ export interface InstrumentConfiguration {
 	fadeInOut?: number;
 	/** Bit-crushed overdrive amount (0 = clean, 1 = fully saturated / crushed) */
 	drive?: number;
+	/**
+	 * Send level into the shared cinematic hall reverb (0 = dry, 1 = drenched).
+	 * ~0.2 adds room, ~0.45 is a big hall, 0.7+ is a distant, washed-out ambience.
+	 */
+	reverbMix?: number;
+	/**
+	 * Per-channel glue compressor (0 = off, 1 = slammed). Squashes the whole
+	 * channel on one bus — fat, punchy breaks and 808s.
+	 */
+	punch?: number;
+	/**
+	 * Modern-mode engine and FX settings. When present the channel plays through
+	 * the modern engine (samples, supersaws, studio FX) instead of the retro
+	 * chip synth; volume, pan and the ADSR fields above are still used.
+	 */
+	modern?: ModernInstrumentSettings;
 }
 
 export interface Channel {
@@ -189,6 +320,8 @@ export interface SongProject {
 	channels: Array<Channel>;
 	/** Optional named sections — each can be looped / exported on its own */
 	sections?: Array<SongSection>;
+	/** "modern" songs belong to the modern music maker. undefined = chiptune */
+	engine?: SongEngine;
 	updatedAt: number;
 }
 

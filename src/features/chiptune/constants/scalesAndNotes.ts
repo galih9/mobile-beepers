@@ -56,6 +56,28 @@ export const DRUM_PAD_DEFINITIONS: Array<DrumPadDefinition> = [
 	{ pitch: 7, label: "Coin Blip", shortLabel: "BLIP", color: "#22d3ee" },
 ];
 
+/** Pad names for the modern kits (same pad numbers as the retro kits) */
+export const MODERN_DRUM_PAD_DEFINITIONS: Array<DrumPadDefinition> = [
+	{ pitch: 0, label: "Kick", shortLabel: "KICK", color: "#fb7185" },
+	{ pitch: 1, label: "Snare", shortLabel: "SNARE", color: "#fbbf24" },
+	{ pitch: 2, label: "Closed Hat", shortLabel: "CHH", color: "#38bdf8" },
+	{ pitch: 3, label: "Open Hat", shortLabel: "OHH", color: "#60a5fa" },
+	{ pitch: 4, label: "Low Tom", shortLabel: "LTOM", color: "#a78bfa" },
+	{ pitch: 5, label: "High Tom", shortLabel: "HTOM", color: "#c084fc" },
+	{ pitch: 6, label: "Clap", shortLabel: "CLAP", color: "#34d399" },
+	{ pitch: 7, label: "Crash / Ride", shortLabel: "CYM", color: "#22d3ee" },
+];
+
+/** Break slicer: slice 1 sits on C3 and each following slice one semitone up */
+export const SLICE_ROW_BASE_MIDI = 48;
+
+export interface PianoRollRowOptions {
+	/** Drum pad names to show instead of the retro kit names */
+	drumPads?: Array<DrumPadDefinition>;
+	/** Show one row per break slice (slicer channels) instead of piano keys */
+	sliceCount?: number;
+}
+
 export const MELODIC_MIN_MIDI = 36; // C2
 export const MELODIC_MAX_MIDI = 84; // C6
 
@@ -95,12 +117,33 @@ export const buildPianoRollRows = (
 	channelType: ChannelType,
 	rootKey: MusicalKey,
 	scale: ScaleType,
-	scaleLockOnly: boolean
+	scaleLockOnly: boolean,
+	options: PianoRollRowOptions = {}
 ): Array<PianoRollRow> => {
+	if (channelType === "pitch" && options.sliceCount) {
+		const count = Math.max(
+			1,
+			Math.min(MELODIC_MAX_MIDI - SLICE_ROW_BASE_MIDI + 1, options.sliceCount)
+		);
+		const sliceRows: Array<PianoRollRow> = [];
+		for (let slice = count - 1; slice >= 0; slice -= 1) {
+			sliceRows.push({
+				pitch: SLICE_ROW_BASE_MIDI + slice,
+				label: `SL ${slice + 1}`,
+				inScale: true,
+				// Mark every 4th slice (the beats of a 16-slice bar)
+				isRoot: slice % 4 === 0,
+				isSharp: false,
+				accentColor: slice % 4 === 0 ? "#f472b6" : "#a78bfa",
+			});
+		}
+		return sliceRows;
+	}
 	if (channelType === "drum") {
+		const pads = options.drumPads ?? DRUM_PAD_DEFINITIONS;
 		const drumRows: Array<PianoRollRow> = [];
-		for (let pitch = DRUM_PAD_DEFINITIONS.length - 1; pitch >= 0; pitch -= 1) {
-			const pad = DRUM_PAD_DEFINITIONS[pitch];
+		for (let pitch = pads.length - 1; pitch >= 0; pitch -= 1) {
+			const pad = pads[pitch];
 			if (pad) {
 				drumRows.push({
 					pitch: pad.pitch,

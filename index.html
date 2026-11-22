@@ -15,7 +15,8 @@
           localStorage.getItem("ultrabeep-chiptune-store-v1") || "{}"
         );
         var theme = saved && saved.state && saved.state.themeMode;
-        if (theme === "neon" || theme === "dark" || theme === "light") {
+        var themes = ["neon", "dark", "light", "synthwave", "phosphor", "crimson", "frost", "famicom"];
+        if (themes.indexOf(theme) !== -1) {
           document.documentElement.dataset.theme = theme;
         }
       } catch (error) {

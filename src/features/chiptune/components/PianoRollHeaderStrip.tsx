@@ -14,6 +14,7 @@ import {
 import type { FunctionComponent } from "../../../common/types";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import type { Channel, EditorTool } from "../types/music";
+import { ArticulationControls } from "./ArticulationControls";
 import { NoteVolumeControls } from "./NoteVolumeControls";
 
 const DURATION_OPTIONS: Array<{ label: string; steps: number }> = [
@@ -72,6 +73,7 @@ export const PianoRollHeaderStrip = ({
 	const canRedo = useChiptuneStore((state) => state.canRedo);
 	const undo = useChiptuneStore((state) => state.undo);
 	const redo = useChiptuneStore((state) => state.redo);
+	const show = useChiptuneStore((state) => state.toolbarVisibility);
 
 	return (
 		<div className="studio-chrome-text flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-1.5 border-b border-slate-800 bg-slate-900/90 px-2 py-1">
@@ -90,32 +92,34 @@ export const PianoRollHeaderStrip = ({
 
 			<div className="flex flex-wrap items-center gap-1.5">
 				{/* Undo / Redo */}
-				<div
-					aria-label="Undo and redo"
-					className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
-					role="group"
-				>
-					<button
-						aria-label="Undo note edit"
-						className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
-						disabled={!canUndo}
-						title="Undo (Ctrl+Z / ⌘Z)"
-						type="button"
-						onClick={undo}
+				{show.pianoHistory && (
+					<div
+						aria-label="Undo and redo"
+						className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
+						role="group"
 					>
-						<ArrowUturnLeftIcon aria-hidden="true" className="size-3" />
-					</button>
-					<button
-						aria-label="Redo note edit"
-						className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
-						disabled={!canRedo}
-						title="Redo (Ctrl+Y / ⌘⇧Z)"
-						type="button"
-						onClick={redo}
-					>
-						<ArrowUturnRightIcon aria-hidden="true" className="size-3" />
-					</button>
-				</div>
+						<button
+							aria-label="Undo note edit"
+							className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+							disabled={!canUndo}
+							title="Undo (Ctrl+Z / ⌘Z)"
+							type="button"
+							onClick={undo}
+						>
+							<ArrowUturnLeftIcon aria-hidden="true" className="size-3" />
+						</button>
+						<button
+							aria-label="Redo note edit"
+							className="inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:pointer-events-none disabled:opacity-30"
+							disabled={!canRedo}
+							title="Redo (Ctrl+Y / ⌘⇧Z)"
+							type="button"
+							onClick={redo}
+						>
+							<ArrowUturnRightIcon aria-hidden="true" className="size-3" />
+						</button>
+					</div>
+				)}
 
 				{/* Tool Selector: Select / Draw / Move / Erase / Bend / Fade / Stutter */}
 				<div
@@ -187,59 +191,67 @@ export const PianoRollHeaderStrip = ({
 						<BackspaceIcon aria-hidden="true" className="size-3" />
 						<span className="hidden sm:inline">Erase</span>
 					</button>
-					<button
-						aria-pressed={activeTool === "slide"}
-						title="Drag note vertically to bend pitch, or click to cycle"
-						type="button"
-						className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
-							activeTool === "slide"
-								? "bg-amber-500/25 text-amber-200"
-								: "text-slate-400 hover:text-white"
-						}`}
-						onClick={(): void => {
-							onSelectTool(activeTool === "slide" ? "draw" : "slide");
-						}}
-					>
-						<ArrowTrendingUpIcon aria-hidden="true" className="size-3" />
-						<span className="hidden sm:inline">Bend</span>
-					</button>
-					<button
-						aria-pressed={activeTool === "fade"}
-						title="Click a note to cycle Fade In / Fade Out envelope"
-						type="button"
-						className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
-							activeTool === "fade"
-								? "bg-sky-500/25 text-sky-200"
-								: "text-slate-400 hover:text-white"
-						}`}
-						onClick={(): void => {
-							onSelectTool(activeTool === "fade" ? "draw" : "fade");
-						}}
-					>
-						<SignalIcon aria-hidden="true" className="size-3" />
-						<span className="hidden sm:inline">Fade</span>
-					</button>
-					<button
-						aria-pressed={activeTool === "stutter"}
-						title="Click a note to cycle Stutter / ratchet retriggers (x2, x3, x4, x6, x8). Combine with Bend for rising rolls."
-						type="button"
-						className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
-							activeTool === "stutter"
-								? "bg-fuchsia-500/25 text-fuchsia-200"
-								: "text-slate-400 hover:text-white"
-						}`}
-						onClick={(): void => {
-							onSelectTool(activeTool === "stutter" ? "draw" : "stutter");
-						}}
-					>
-						<BoltIcon aria-hidden="true" className="size-3" />
-						<span className="hidden sm:inline">Stutter</span>
-					</button>
+					{show.effectTools && (
+						<>
+							<button
+								aria-pressed={activeTool === "slide"}
+								title="Drag note vertically to bend pitch, or click to cycle"
+								type="button"
+								className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
+									activeTool === "slide"
+										? "bg-amber-500/25 text-amber-200"
+										: "text-slate-400 hover:text-white"
+								}`}
+								onClick={(): void => {
+									onSelectTool(activeTool === "slide" ? "draw" : "slide");
+								}}
+							>
+								<ArrowTrendingUpIcon aria-hidden="true" className="size-3" />
+								<span className="hidden sm:inline">Bend</span>
+							</button>
+							<button
+								aria-pressed={activeTool === "fade"}
+								title="Click a note to cycle Fade In / Fade Out envelope"
+								type="button"
+								className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
+									activeTool === "fade"
+										? "bg-sky-500/25 text-sky-200"
+										: "text-slate-400 hover:text-white"
+								}`}
+								onClick={(): void => {
+									onSelectTool(activeTool === "fade" ? "draw" : "fade");
+								}}
+							>
+								<SignalIcon aria-hidden="true" className="size-3" />
+								<span className="hidden sm:inline">Fade</span>
+							</button>
+							<button
+								aria-pressed={activeTool === "stutter"}
+								title="Click a note to cycle Stutter / ratchet retriggers (x2, x3, x4, x6, x8). Combine with Bend for rising rolls."
+								type="button"
+								className={`inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[10px] font-semibold transition ${
+									activeTool === "stutter"
+										? "bg-fuchsia-500/25 text-fuchsia-200"
+										: "text-slate-400 hover:text-white"
+								}`}
+								onClick={(): void => {
+									onSelectTool(activeTool === "stutter" ? "draw" : "stutter");
+								}}
+							>
+								<BoltIcon aria-hidden="true" className="size-3" />
+								<span className="hidden sm:inline">Stutter</span>
+							</button>
+						</>
+					)}
 				</div>
 
 				{/* Note Length Selector */}
-				{activeChannel.type === "pitch" && (
-					<div className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5">
+				{show.noteLength && activeChannel.type === "pitch" && (
+					<div
+						aria-label="Note length for new notes"
+						className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
+						role="group"
+					>
 						{DURATION_OPTIONS.map((option) => (
 							<button
 								key={option.label}
@@ -261,10 +273,13 @@ export const PianoRollHeaderStrip = ({
 				)}
 
 				{/* Per-note Volume, Humanize & Snap */}
-				<NoteVolumeControls />
+				{show.noteFeel && <NoteVolumeControls />}
+
+				{/* Articulation (staccato, accent, legato…) & ornaments */}
+				{show.articulation && <ArticulationControls />}
 
 				{/* Tablet & Desktop Transpose Controls */}
-				{activeChannel.type === "pitch" && (
+				{show.transpose && activeChannel.type === "pitch" && (
 					<div
 						aria-label="Transpose pattern"
 						className="hidden items-center rounded border border-slate-800 bg-slate-950 p-0.5 md:flex"
@@ -287,50 +302,56 @@ export const PianoRollHeaderStrip = ({
 				)}
 
 				{/* Zoom Controls */}
-				<div
-					aria-label="Piano roll horizontal zoom"
-					className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
-					role="group"
-				>
-					{ZOOM_OPTIONS.map((option) => (
-						<button
-							key={option.label}
-							aria-pressed={pianoRollZoom === option.value}
-							type="button"
-							className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold transition ${
-								pianoRollZoom === option.value
-									? "bg-violet-500/25 text-violet-200"
-									: "text-slate-400 hover:text-white"
-							}`}
-							onClick={(): void => {
-								onSelectZoom(option.value);
-							}}
-						>
-							{option.label}
-						</button>
-					))}
-				</div>
+				{show.zoom && (
+					<div
+						aria-label="Piano roll horizontal zoom"
+						className="flex items-center rounded border border-slate-800 bg-slate-950 p-0.5"
+						role="group"
+					>
+						{ZOOM_OPTIONS.map((option) => (
+							<button
+								key={option.label}
+								aria-pressed={pianoRollZoom === option.value}
+								type="button"
+								className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold transition ${
+									pianoRollZoom === option.value
+										? "bg-violet-500/25 text-violet-200"
+										: "text-slate-400 hover:text-white"
+								}`}
+								onClick={(): void => {
+									onSelectZoom(option.value);
+								}}
+							>
+								{option.label}
+							</button>
+						))}
+					</div>
+				)}
 
-				<button
-					aria-label="Generate chiptune riff"
-					className="inline-flex h-6 items-center gap-0.5 rounded border border-cyan-500/40 bg-cyan-500/15 px-1.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-500/25"
-					title="Auto-generate in-key riff"
-					type="button"
-					onClick={onGenerateRiff}
-				>
-					<SparklesIcon aria-hidden="true" className="size-3" />
-					<span>Riff</span>
-				</button>
+				{show.riff && (
+					<button
+						aria-label="Generate chiptune riff"
+						className="inline-flex h-6 items-center gap-0.5 rounded border border-cyan-500/40 bg-cyan-500/15 px-1.5 text-[10px] font-semibold text-cyan-200 hover:bg-cyan-500/25"
+						title="Auto-generate in-key riff"
+						type="button"
+						onClick={onGenerateRiff}
+					>
+						<SparklesIcon aria-hidden="true" className="size-3" />
+						<span>Riff</span>
+					</button>
+				)}
 
-				<button
-					aria-label="Clear pattern notes"
-					className="inline-flex h-6 items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 text-[10px] text-rose-300 hover:bg-rose-500/20"
-					title="Clear pattern"
-					type="button"
-					onClick={onClearPattern}
-				>
-					<TrashIcon aria-hidden="true" className="size-3" />
-				</button>
+				{show.clearPattern && (
+					<button
+						aria-label="Clear pattern notes"
+						className="inline-flex h-6 items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 text-[10px] text-rose-300 hover:bg-rose-500/20"
+						title="Clear pattern"
+						type="button"
+						onClick={onClearPattern}
+					>
+						<TrashIcon aria-hidden="true" className="size-3" />
+					</button>
+				)}
 			</div>
 		</div>
 	);

@@ -1,5 +1,12 @@
 import * as Tone from "tone";
 import type { LoopMode, SongProject } from "../types/music";
+import { buildNotePlaybackContext } from "./articulation";
+import {
+	disposeModernRack,
+	getModernRack,
+	songUsesModernRack,
+} from "./modern/modernRack";
+import { preloadSongSamples } from "./modern/sampleLibrary";
 import {
 	ensureToneStarted,
 	getLiveMasterInputNode,
@@ -118,6 +125,10 @@ class ChiptunePlaybackEngine {
 			// Ignore transport errors in headless environments
 		}
 
+		if (songUsesModernRack(song)) {
+			void preloadSongSamples(song);
+		}
+
 		this.masterGainNode = audioContext.createGain();
 		this.masterGainNode.gain.value = song.masterVolume;
 		this.masterGainNode.connect(getLiveMasterInputNode());
@@ -150,6 +161,7 @@ class ChiptunePlaybackEngine {
 			}
 		}
 		if (this.masterGainNode) {
+			disposeModernRack(this.masterGainNode);
 			this.masterGainNode.disconnect();
 			this.masterGainNode = null;
 		}
@@ -189,6 +201,10 @@ class ChiptunePlaybackEngine {
 		const scheduledTime = this.nextNoteTime + swingOffset;
 
 		const hasSoloChannel = song.channels.some((channel) => channel.solo);
+		// Modern songs mix every channel through the modern FX rack
+		const modernRack = songUsesModernRack(song)
+			? getModernRack(audioContext, destination)
+			: null;
 
 		song.channels.forEach((channel) => {
 			const isAudible = hasSoloChannel ? channel.solo : !channel.muted;
@@ -206,17 +222,40 @@ class ChiptunePlaybackEngine {
 				return;
 			}
 
+			const isDrum =
+				channel.type === "drum" || channel.instrument.waveform === "retroKit";
 			pattern.notes.forEach((note) => {
-				if (note.step === this.currentStepIndex) {
-					scheduleChannelNote(
-						audioContext,
-						destination,
+				if (note.step !== this.currentStepIndex) {
+					return;
+				}
+				const playbackContext = buildNotePlaybackContext(
+					pattern.notes,
+					note,
+					song,
+					isDrum
+				);
+				if (modernRack && channel.instrument.modern) {
+					modernRack.scheduleNote(
 						note,
 						channel,
+						song,
 						scheduledTime,
-						baseStepDuration
+						baseStepDuration,
+						playbackContext
 					);
+					return;
 				}
+				scheduleChannelNote(
+					audioContext,
+					modernRack
+						? modernRack.getChannelInput(channel, song.bpm)
+						: destination,
+					note,
+					channel,
+					scheduledTime,
+					baseStepDuration,
+					playbackContext
+				);
 			});
 		});
 

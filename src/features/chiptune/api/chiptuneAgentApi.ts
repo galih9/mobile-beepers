@@ -1,16 +1,30 @@
 import {
+	ARTICULATION_LABELS,
+	ARTICULATION_SHAPES,
+	isNoteArticulation,
+	isNoteOrnament,
+	NOTE_ARTICULATIONS,
+	NOTE_ORNAMENTS,
+	ORNAMENT_LABELS,
+	type ArticulationShape,
+} from "../audio/articulation";
+import {
 	renderSongToMidiBlob,
 	renderSongToMidiBytes,
 	type MidiExportOptions,
 } from "../audio/midiExporter";
 import { MAX_NOTE_RATCHET } from "../audio/noteRatchet";
-import { playPreviewNote } from "../audio/voiceSynthesizer";
+import { playPreviewNote } from "../audio/channelPreview";
 import {
 	measureAudioBufferLevels,
 	renderSongToAudioBuffer,
 	renderSongToWavBlob,
 } from "../audio/wavExporter";
-import { DEMO_SONGS } from "../constants/demoSongs";
+import { ALL_DEMO_SONGS } from "../constants/demoSongs";
+import {
+	MODERN_ENGINE_LABELS,
+	MODERN_INSTRUMENT_PRESETS,
+} from "../constants/modernPresets";
 import {
 	MAX_CHANNELS,
 	MAX_PATTERN_INDEX,
@@ -46,6 +60,7 @@ import {
 	updateChannelPatternNotes,
 	updateNotePropertiesInSong,
 	type HumanizeOptions,
+	type NotePropertyUpdate,
 } from "../store/songHelpers";
 import type { ChiptuneStoreState } from "../store/storeTypes";
 import { useChiptuneStore } from "../store/useChiptuneStore";
@@ -57,9 +72,13 @@ import type {
 	InstrumentPresetDefinition,
 	LoopMode,
 	MusicalKey,
+	ModernEngine,
+	ModernInstrumentSettings,
+	NoteArticulation,
 	NoteBendStyle,
 	NoteEvent,
 	NoteFadeMode,
+	NoteOrnament,
 	Pattern,
 	ScaleType,
 	SfxCategory,
@@ -84,6 +103,10 @@ export interface AgentNoteInput {
 	ratchet?: number;
 	/** Micro-timing nudge in steps (-0.5 early … +0.5 late). Humanizes off the grid. */
 	timingOffset?: number;
+	/** staccato | tenuto | accent | marcato | legato (omit = normal) */
+	articulation?: NoteArticulation;
+	/** grace | mordent | trill (uses the scale step above / below) */
+	ornament?: NoteOrnament;
 }
 
 export interface AgentSectionInput {
@@ -139,6 +162,13 @@ export interface AgentApiHelp {
 	keys: Array<MusicalKey>;
 	scales: Array<ScaleType>;
 	presets: Array<{ id: string; name: string; category: ChannelType }>;
+	modernPresets: Array<{
+		id: string;
+		name: string;
+		category: ChannelType;
+		engine: ModernEngine | undefined;
+		engineLabel: string | undefined;
+	}>;
 	drumPads: Array<{ pitch: number; shortLabel: string; label: string }>;
 	exampleComposeSong: AgentSongSpecification;
 }
@@ -282,6 +312,12 @@ const normalizeAgentNote = (
 		...(filterSweepTo !== undefined ? { filterSweepTo } : {}),
 		...(ratchet > 1 ? { ratchet } : {}),
 		...(timingOffset !== 0 ? { timingOffset } : {}),
+		...(isNoteArticulation(input.articulation)
+			? { articulation: input.articulation }
+			: {}),
+		...(channelType === "pitch" && isNoteOrnament(input.ornament)
+			? { ornament: input.ornament }
+			: {}),
 	};
 };
 
@@ -290,12 +326,20 @@ export interface ChiptuneAgentApi {
 	getState: () => ChiptuneStoreState;
 	getSong: () => SongProject;
 	listPresets: () => Array<InstrumentPresetDefinition>;
+	/** Modern-mode presets (sampled piano / strings, synths, kits, sampler, slicer) */
+	listModernPresets: () => Array<InstrumentPresetDefinition>;
+	/** Merge modern engine / FX settings on a modern channel */
+	updateModernSettings: (
+		channelIndex: number,
+		updates: Partial<ModernInstrumentSettings>
+	) => void;
 	listScales: () => typeof SCALE_DEFINITIONS;
 	listKeys: () => Array<MusicalKey>;
 	listDrumPads: () => Array<DrumPadDefinition>;
 	listDemoSongs: () => Array<{
 		id: string;
 		title: string;
+		engine: "chiptune" | "modern";
 		bpm: number;
 		rootKey: MusicalKey;
 		scale: ScaleType;
@@ -405,7 +449,10 @@ export interface ChiptuneAgentApi {
 	composeSong: (specification: AgentSongSpecification) => SongProject;
 	exportSongJson: () => string;
 	importSongJson: (jsonOrProject: string | SongProject) => SongProject;
-	exportWavBlob: (loopCount?: number) => Promise<Blob>;
+	exportWavBlob: (
+		loopCount?: number,
+		options?: { seamlessLoop?: boolean }
+	) => Promise<Blob>;
 	exportMidiBlob: (options?: MidiExportOptions) => Blob;
 	exportMidiBytes: (options?: MidiExportOptions) => Uint8Array;
 
@@ -436,6 +483,37 @@ export interface ChiptuneAgentApi {
 	quantizePattern: (
 		channelIndex?: number,
 		barIndex?: number
+	) => Array<NoteEvent>;
+	listArticulations: () => {
+		articulations: Array<{
+			id: NoteArticulation;
+			name: string;
+			description: string;
+			shape: ArticulationShape;
+		}>;
+		ornaments: Array<{ id: NoteOrnament; name: string; description: string }>;
+	};
+	setNoteArticulation: (
+		step: number,
+		pitchOrNote: number | string,
+		articulation: NoteArticulation | null,
+		channelIndex?: number,
+		barIndex?: number
+	) => NoteEvent | null;
+	setNoteOrnament: (
+		step: number,
+		pitchOrNote: number | string,
+		ornament: NoteOrnament | null,
+		channelIndex?: number,
+		barIndex?: number
+	) => NoteEvent | null;
+	setPatternArticulation: (
+		articulation: NoteArticulation | null,
+		options?: {
+			noteIds?: Array<string>;
+			channelIndex?: number;
+			barIndex?: number;
+		}
 	) => Array<NoteEvent>;
 	listSections: () => Array<SongSection>;
 	setSections: (sections: Array<AgentSectionInput>) => Array<SongSection>;
@@ -491,7 +569,7 @@ const getPatternNotesAt = (
 const updateNoteAt = (
 	step: number,
 	pitchOrNote: number | string,
-	update: { velocity?: number; timingOffset?: number },
+	update: Omit<NotePropertyUpdate, "id">,
 	channelIndex?: number,
 	barIndex?: number
 ): NoteEvent | null => {
@@ -556,11 +634,31 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 				"humanizePattern({ velocityAmount?, timingAmount?, noteIds?, seed? }, channelIndex?, barIndex?) adds small random volume/timing variation (defaults ±0.08).",
 			quantizePattern:
 				"quantizePattern(channelIndex?, barIndex?) removes timing nudges (snap to grid).",
+			articulation:
+				"Notes accept articulation: 'staccato' (short, ~45% length), 'tenuto' (full length, held weight), 'accent' (louder + brighter attack), 'marcato' (strongest accent, slightly short) or 'legato' (slurs from the previous touching note in the same pattern: no re-attack + quick glide; the previous note is cut where the legato note starts). Drums honour accent/marcato as louder hits.",
+			ornament:
+				"Pitched notes accept ornament: 'grace' (flick from the scale step below), 'mordent' (note → step above → note) or 'trill' (fast alternation with the step above for the whole note). Neighbours follow the song key/scale.",
+			setNoteArticulation:
+				"setNoteArticulation(step, pitchOrNote, articulation | null, channelIndex?, barIndex?) sets or clears one note's articulation.",
+			setNoteOrnament:
+				"setNoteOrnament(step, pitchOrNote, ornament | null, channelIndex?, barIndex?) sets or clears one note's ornament.",
+			setPatternArticulation:
+				"setPatternArticulation(articulation | null, { noteIds?, channelIndex?, barIndex? }) sets the articulation of every note (or the given ids) in a pattern.",
+			listArticulations:
+				"listArticulations() returns every articulation (with its gate / gain / filter shape) and ornament.",
 			setSections:
 				"setSections([{ name, startBar, endBar }]) defines named loop regions (0-indexed, inclusive) — e.g. game-music sections. composeSong also accepts sections.",
 			loopSection: "loopSection(nameOrId) sets the loop range to a section.",
 			exportSectionWav:
-				"exportSectionWav(nameOrId, loopCount?) renders one section as a seamless loop WAV without changing the loop range.",
+				"exportSectionWav(nameOrId, loopCount?) renders one section as a seamless loop WAV (reverb/release tails folded onto the start, trimmed to the exact loop length) without changing the loop range.",
+			instrumentReverb:
+				"updateChannelInstrument(channelIndex, { reverbMix: 0..1 }) sends the channel into the shared cinematic hall reverb (~3.4 s tail) — ~0.2 room, ~0.45 big hall, 0.7+ distant wash.",
+			instrumentPunch:
+				"updateChannelInstrument(channelIndex, { punch: 0..1 }) runs the whole channel through one glue compressor (+ make-up gain) — ~0.5 tight, ~0.7 crushed sampled-break feel, 1 slammed.",
+			heavyBreakcore:
+				"Presets breakcore-heavy-break-kit (drum: 0 kick, 1 snare w/ room tail, 2 hat, 3 crash, 4/5 toms, 6 open hat, 7 kick+snare chop), breakcore-808 (waveform 'sub808': kick+bass in one, play on chord roots), breakcore-dream-saw (long emotional lead), breakcore-vocal-chop (short choir chops).",
+			cinematicWaveforms:
+				"Waveforms 'piano' (felt piano, natural decay — use sustain 1), 'strings' (five drifting saw players — slow attack for pads, short + staccato for ostinatos) and 'choir' (formant 'aah' with breath). Presets: cinematic-felt-piano, cinematic-strings, cinematic-low-strings, cinematic-airy-choir, cinematic-music-box, cinematic-perc-kit.",
 			measureLevels:
 				"measureLevels({ section?, loopCount? }) renders offline and returns peak, peakDb, rmsDb and clipped sample count.",
 			instrumentDrive:
@@ -568,14 +666,16 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 			play: "Start live playback.",
 			stop: "Stop live playback.",
 			setStudioMode:
-				"Switch between 'music' (default multi-bar composer) and 'sfx' (retro SFX & short track creator).",
+				"Switch between 'modern' (modern music maker: sampled piano / strings / harp, supersaw, pad, pluck, FM keys, reese / sub bass, punchy + jungle break kits, user sampler and break slicer, studio FX), 'music' (retro chiptune composer) and 'sfx' (retro SFX & short track creator). Each mode keeps its own project.",
+			modernMode:
+				"In 'modern' mode apply presets from listModernPresets() and tweak them with updateModernSettings(channelIndex, { cutoff, resonance, filterEnv, spread, tune, drive, chorus, delayMix, delayDivision, delayFeedback, reverbSend, sidechain, lowCut }). Volume, pan and attack/decay/sustain/release stay on updateChannelInstrument. Drum kits use pads 0-7 (kick, snare, closed hat, open hat, low tom, high tom, clap, crash/ride); a kit kick ducks every channel with sidechain > 0. Slicer channels: C3 (48) = slice 1, one slice per semitone.",
 			loadSfxPreset:
 				"Load a built-in retro SFX or short jingle preset ('sfx-ray-gun', 'sfx-hurt', 'sfx-attack', 'sfx-winning', 'sfx-defeated', etc.).",
 			generateSfx:
 				"Generate procedural SFX notes ('laser', 'hurt', 'attack', 'jump', 'coin', 'random') on the selected channel and bar.",
 			exportSongJson: "Serialize current SongProject to JSON.",
 			exportWavBlob:
-				"Render current SongProject offline into a stereo WAV Blob.",
+				"exportWavBlob(loopCount?, { seamlessLoop? }) renders the current SongProject offline into a stereo WAV Blob. seamlessLoop: true folds the tail onto the start for a gapless game loop.",
 			exportMidiBlob:
 				"Export current SongProject to a standard multi-track MIDI Blob (SMF Format 1).",
 			exportMidiBytes:
@@ -587,6 +687,15 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 			id: preset.id,
 			name: preset.name,
 			category: preset.category,
+		})),
+		modernPresets: MODERN_INSTRUMENT_PRESETS.map((preset) => ({
+			id: preset.id,
+			name: preset.name,
+			category: preset.category,
+			engine: preset.configuration.modern?.engine,
+			engineLabel: preset.configuration.modern
+				? MODERN_ENGINE_LABELS[preset.configuration.modern.engine]
+				: undefined,
 		})),
 		drumPads: DRUM_PAD_DEFINITIONS.map((pad) => ({
 			pitch: pad.pitch,
@@ -644,6 +753,13 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 
 	listPresets: (): Array<InstrumentPresetDefinition> => INSTRUMENT_PRESETS,
 
+	listModernPresets: (): Array<InstrumentPresetDefinition> =>
+		MODERN_INSTRUMENT_PRESETS,
+
+	updateModernSettings: (channelIndex, updates): void => {
+		useChiptuneStore.getState().updateModernSettings(channelIndex, updates);
+	},
+
 	listScales: (): typeof SCALE_DEFINITIONS => SCALE_DEFINITIONS,
 
 	listKeys: (): Array<MusicalKey> => MUSICAL_KEYS,
@@ -653,15 +769,17 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 	listDemoSongs: (): Array<{
 		id: string;
 		title: string;
+		engine: "chiptune" | "modern";
 		bpm: number;
 		rootKey: MusicalKey;
 		scale: ScaleType;
 		totalBars: number;
 		channelCount: number;
 	}> =>
-		DEMO_SONGS.map((demo) => ({
+		ALL_DEMO_SONGS.map((demo) => ({
 			id: demo.id,
 			title: demo.title,
+			engine: demo.engine ?? "chiptune",
 			bpm: demo.bpm,
 			rootKey: demo.rootKey,
 			scale: demo.scale,
@@ -1277,8 +1395,12 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		return structuredClone(useChiptuneStore.getState().song);
 	},
 
-	exportWavBlob: async (loopCount = 1): Promise<Blob> => {
-		return renderSongToWavBlob(useChiptuneStore.getState().song, loopCount);
+	exportWavBlob: async (loopCount = 1, options = {}): Promise<Blob> => {
+		return renderSongToWavBlob(
+			useChiptuneStore.getState().song,
+			loopCount,
+			options
+		);
 	},
 
 	exportMidiBlob: (options?: MidiExportOptions): Blob => {
@@ -1330,6 +1452,74 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 					id: note.id,
 					velocity: note.velocity * safeFactor,
 				}))
+			),
+		}));
+		return getPatternNotesAt(targetChannel, targetBar);
+	},
+
+	listArticulations: () => ({
+		articulations: NOTE_ARTICULATIONS.map((id) => ({
+			id,
+			name: ARTICULATION_LABELS[id].name,
+			description: ARTICULATION_LABELS[id].description,
+			shape: ARTICULATION_SHAPES[id],
+		})),
+		ornaments: NOTE_ORNAMENTS.map((id) => ({
+			id,
+			name: ORNAMENT_LABELS[id].name,
+			description: ORNAMENT_LABELS[id].description,
+		})),
+	}),
+
+	setNoteArticulation: (
+		step,
+		pitchOrNote,
+		articulation,
+		channelIndex,
+		barIndex
+	): NoteEvent | null =>
+		updateNoteAt(
+			step,
+			pitchOrNote,
+			{ articulation: isNoteArticulation(articulation) ? articulation : null },
+			channelIndex,
+			barIndex
+		),
+
+	setNoteOrnament: (
+		step,
+		pitchOrNote,
+		ornament,
+		channelIndex,
+		barIndex
+	): NoteEvent | null =>
+		updateNoteAt(
+			step,
+			pitchOrNote,
+			{ ornament: isNoteOrnament(ornament) ? ornament : null },
+			channelIndex,
+			barIndex
+		),
+
+	setPatternArticulation: (articulation, options = {}): Array<NoteEvent> => {
+		const { targetChannel, targetBar } = getValidatedChannelAndBar(
+			options.channelIndex,
+			options.barIndex
+		);
+		const idFilter = options.noteIds ? new Set(options.noteIds) : null;
+		useChiptuneStore.setState((currentState) => ({
+			song: updateNotePropertiesInSong(
+				currentState.song,
+				targetChannel,
+				targetBar,
+				getPatternNotesAt(targetChannel, targetBar)
+					.filter((note) => !idFilter || idFilter.has(note.id))
+					.map((note) => ({
+						id: note.id,
+						articulation: isNoteArticulation(articulation)
+							? articulation
+							: null,
+					}))
 			),
 		}));
 		return getPatternNotesAt(targetChannel, targetBar);
@@ -1393,7 +1583,8 @@ export const chiptuneAgentApi: ChiptuneAgentApi = {
 		}
 		return renderSongToWavBlob(
 			{ ...song, loopStartBar: section.startBar, loopEndBar: section.endBar },
-			loopCount
+			loopCount,
+			{ seamlessLoop: true }
 		);
 	},
 

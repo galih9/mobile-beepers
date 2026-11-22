@@ -2,6 +2,7 @@ import {
 	CHANNEL_COLOR_PALETTE,
 	generateProceduralPatternNotes,
 } from "../constants/demoSongs";
+import { isNoteArticulation, isNoteOrnament } from "../audio/articulation";
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
 import { MAX_PATTERN_INDEX, MAX_SONG_BARS } from "../constants/limits";
 import {
@@ -14,10 +15,12 @@ import type {
 	ChannelType,
 	CopiedBarSlot,
 	CopiedBarsClipboard,
+	NoteArticulation,
 	NoteBatchMoveUpdate,
 	NoteBendStyle,
 	NoteEvent,
 	NoteFadeMode,
+	NoteOrnament,
 	Pattern,
 	SongProject,
 	SongSection,
@@ -805,11 +808,9 @@ export const pasteBarsIntoSong = (
 			);
 
 		if (isSameNotes) {
-			targetChannelObject.barSequence[destinationBarIndex] =
-				slot.patternNumber;
+			targetChannelObject.barSequence[destinationBarIndex] = slot.patternNumber;
 		} else {
-			const newPatternIndex =
-				getNextAvailablePatternIndex(targetChannelObject);
+			const newPatternIndex = getNextAvailablePatternIndex(targetChannelObject);
 			const clonedNotes = slot.patternNotes.map((note) => ({
 				...note,
 				id: `note-${note.step}-${note.pitch}-${Math.random().toString(36).slice(2, 7)}`,
@@ -826,8 +827,7 @@ export const pasteBarsIntoSong = (
 				index: newPatternIndex,
 				notes: clonedNotes,
 			};
-			targetChannelObject.barSequence[destinationBarIndex] =
-				newPatternIndex;
+			targetChannelObject.barSequence[destinationBarIndex] = newPatternIndex;
 		}
 	}
 
@@ -972,6 +972,10 @@ export interface NotePropertyUpdate {
 	id: string;
 	velocity?: number;
 	timingOffset?: number;
+	/** Set the articulation; null clears it back to normal */
+	articulation?: NoteArticulation | null;
+	/** Set the ornament; null removes it */
+	ornament?: NoteOrnament | null;
 }
 
 /**
@@ -1009,6 +1013,20 @@ export const updateNotePropertiesInSong = (
 					delete nextNote.timingOffset;
 				} else {
 					nextNote.timingOffset = offset;
+				}
+			}
+			if (update.articulation !== undefined) {
+				if (isNoteArticulation(update.articulation)) {
+					nextNote.articulation = update.articulation;
+				} else {
+					delete nextNote.articulation;
+				}
+			}
+			if (update.ornament !== undefined) {
+				if (isNoteOrnament(update.ornament)) {
+					nextNote.ornament = update.ornament;
+				} else {
+					delete nextNote.ornament;
 				}
 			}
 			return nextNote;

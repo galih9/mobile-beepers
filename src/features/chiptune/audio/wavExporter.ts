@@ -1,5 +1,12 @@
 import type { SongProject } from "../types/music";
-import { scheduleChannelNote } from "./voiceSynthesizer";
+import { buildNotePlaybackContext } from "./articulation";
+import {
+	getModernRack,
+	getModernTailSeconds,
+	songUsesModernRack,
+} from "./modern/modernRack";
+import { preloadSongSamples } from "./modern/sampleLibrary";
+import { getSongTailSeconds, scheduleChannelNote } from "./voiceSynthesizer";
 
 const writeAsciiString = (
 	view: DataView,
@@ -103,9 +110,46 @@ export const measureAudioBufferLevels = (
 	};
 };
 
+export interface RenderOptions {
+	/**
+	 * Game-ready loop: the reverb / release tail that rings past the loop end is
+	 * folded back onto the start and the file is trimmed to the exact loop
+	 * length, so it repeats with no gap and no cut-off tails.
+	 */
+	seamlessLoop?: boolean;
+}
+
+/** Adds everything after `loopFrames` onto the start, then trims to `loopFrames`. */
+const foldTailIntoLoop = (
+	rendered: AudioBuffer,
+	loopFrames: number
+): AudioBuffer => {
+	const frames = Math.min(loopFrames, rendered.length);
+	const folded = new AudioBuffer({
+		length: frames,
+		numberOfChannels: rendered.numberOfChannels,
+		sampleRate: rendered.sampleRate,
+	});
+	for (
+		let channelIndex = 0;
+		channelIndex < rendered.numberOfChannels;
+		channelIndex += 1
+	) {
+		const source = rendered.getChannelData(channelIndex);
+		const target = folded.getChannelData(channelIndex);
+		target.set(source.subarray(0, frames));
+		for (let frame = frames; frame < source.length; frame += 1) {
+			const wrapped = (frame - frames) % frames;
+			target[wrapped] = (target[wrapped] ?? 0) + (source[frame] ?? 0);
+		}
+	}
+	return folded;
+};
+
 export const renderSongToAudioBuffer = async (
 	song: SongProject,
-	loopCount = 1
+	loopCount = 1,
+	options: RenderOptions = {}
 ): Promise<AudioBuffer> => {
 	const sampleRate = 44100;
 	const stepsPerBar = song.beatsPerBar * song.stepsPerBeat;
@@ -121,7 +165,17 @@ export const renderSongToAudioBuffer = async (
 	const renderedBarCount = loopEnd - loopStart + 1;
 	const singleLoopDuration =
 		renderedBarCount * stepsPerBar * stepDurationSeconds;
-	const tailSeconds = renderedBarCount <= 2 ? 0.35 : 1.25;
+	// Long releases and the hall reverb keep ringing after the last bar
+	const usesModernRack = songUsesModernRack(song);
+	if (usesModernRack) {
+		// Piano / strings / user samples must be decoded before rendering
+		await preloadSongSamples(song);
+	}
+	const tailSeconds = Math.max(
+		renderedBarCount <= 2 ? 0.35 : 1.25,
+		getSongTailSeconds(song) + 0.1,
+		usesModernRack ? getModernTailSeconds(song) + 0.1 : 0
+	);
 	const totalDurationSeconds = singleLoopDuration * loopCount + tailSeconds;
 	const totalFrames = Math.ceil(totalDurationSeconds * sampleRate);
 
@@ -131,6 +185,9 @@ export const renderSongToAudioBuffer = async (
 	masterGain.connect(offlineContext.destination);
 
 	const hasSoloChannel = song.channels.some((channel) => channel.solo);
+	const modernRack = usesModernRack
+		? getModernRack(offlineContext, masterGain)
+		: null;
 
 	for (let loop = 0; loop < loopCount; loop += 1) {
 		const loopOffsetSeconds = loop * singleLoopDuration;
@@ -156,6 +213,8 @@ export const renderSongToAudioBuffer = async (
 					return;
 				}
 
+				const isDrum =
+					channel.type === "drum" || channel.instrument.waveform === "retroKit";
 				pattern.notes.forEach((note) => {
 					const isOddStep = note.step % 2 === 1;
 					const swingOffset = isOddStep
@@ -167,27 +226,72 @@ export const renderSongToAudioBuffer = async (
 						swingOffset +
 						0.02;
 
+					const playbackContext = buildNotePlaybackContext(
+						pattern.notes,
+						note,
+						song,
+						isDrum
+					);
+					if (modernRack && channel.instrument.modern) {
+						modernRack.scheduleNote(
+							note,
+							channel,
+							song,
+							noteStartSeconds,
+							stepDurationSeconds,
+							playbackContext
+						);
+						return;
+					}
 					scheduleChannelNote(
 						offlineContext,
-						masterGain,
+						modernRack
+							? modernRack.getChannelInput(channel, song.bpm)
+							: masterGain,
 						note,
 						channel,
 						noteStartSeconds,
-						stepDurationSeconds
+						stepDurationSeconds,
+						playbackContext
 					);
 				});
 			});
 		}
 	}
 
-	return offlineContext.startRendering();
+	const rendered = await offlineContext.startRendering();
+	if (!options.seamlessLoop) {
+		return rendered;
+	}
+	// Notes start 20 ms into the render (see noteStartSeconds), so the loop
+	// window is shifted by the same amount to keep the downbeat on frame 0.
+	const leadInFrames = Math.round(0.02 * sampleRate);
+	const loopFrames = Math.round(singleLoopDuration * loopCount * sampleRate);
+	const shifted = new AudioBuffer({
+		length: Math.max(1, rendered.length - leadInFrames),
+		numberOfChannels: rendered.numberOfChannels,
+		sampleRate,
+	});
+	for (
+		let channelIndex = 0;
+		channelIndex < rendered.numberOfChannels;
+		channelIndex += 1
+	) {
+		shifted
+			.getChannelData(channelIndex)
+			.set(rendered.getChannelData(channelIndex).subarray(leadInFrames));
+	}
+	return foldTailIntoLoop(shifted, loopFrames);
 };
 
 export const renderSongToWavBlob = async (
 	song: SongProject,
-	loopCount = 1
+	loopCount = 1,
+	options: RenderOptions = {}
 ): Promise<Blob> => {
-	return encodeAudioBufferToWav(await renderSongToAudioBuffer(song, loopCount));
+	return encodeAudioBufferToWav(
+		await renderSongToAudioBuffer(song, loopCount, options)
+	);
 };
 
 export const downloadBlobAsFile = (blob: Blob, filename: string): void => {

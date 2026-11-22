@@ -23,7 +23,7 @@ interface DraggablePresetChipProps {
 	onApply: (presetId: string) => void;
 }
 
-const DraggablePresetChip = ({
+export const DraggablePresetChip = ({
 	preset,
 	isActive,
 	accentColor,
@@ -358,6 +358,38 @@ export const InstrumentSlidersSection = ({
 					}}
 				/>
 
+				<SliderControl
+					inline
+					accentColor={activeChannel.color}
+					label="Hall Reverb"
+					max={1}
+					min={0}
+					step={0.02}
+					value={instrument.reverbMix ?? 0}
+					formatValue={(value): string =>
+						value < 0.01 ? "Dry" : `${Math.round(value * 100)}%`
+					}
+					onChange={(nextValue): void => {
+						onUpdateInstrument(selectedChannelIndex, { reverbMix: nextValue });
+					}}
+				/>
+
+				<SliderControl
+					inline
+					accentColor={activeChannel.color}
+					label="Punch / Glue"
+					max={1}
+					min={0}
+					step={0.05}
+					value={instrument.punch ?? 0}
+					formatValue={(value): string =>
+						value < 0.05 ? "Off" : `${Math.round(value * 100)}%`
+					}
+					onChange={(nextValue): void => {
+						onUpdateInstrument(selectedChannelIndex, { punch: nextValue });
+					}}
+				/>
+
 				{activeChannel.type === "pitch" && (
 					<>
 						<SliderControl
@@ -395,7 +427,7 @@ export const InstrumentSlidersSection = ({
 							accentColor={activeChannel.color}
 							formatValue={(value): string => `${Math.round(value * 1000)} ms`}
 							label="Attack"
-							max={0.3}
+							max={2}
 							min={0.002}
 							step={0.002}
 							value={instrument.attack}
@@ -436,7 +468,7 @@ export const InstrumentSlidersSection = ({
 							accentColor={activeChannel.color}
 							formatValue={(value): string => `${Math.round(value * 1000)} ms`}
 							label="Release"
-							max={0.6}
+							max={4}
 							min={0.02}
 							step={0.01}
 							value={instrument.release}

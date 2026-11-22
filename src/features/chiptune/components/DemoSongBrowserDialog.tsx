@@ -14,6 +14,7 @@ import {
 	DEMO_SONG_CATEGORIES,
 	DEMO_SONGS,
 	getDemoSongMetadata,
+	MODERN_DEMO_SONGS,
 	type DemoSongCategory,
 } from "../constants/demoSongs";
 import { SCALE_DEFINITIONS } from "../constants/scalesAndNotes";
@@ -72,6 +73,9 @@ export const DemoSongBrowserDialog = ({
 	const activeTab = selectedTab ?? initialTab;
 
 	const currentSongTitle = useChiptuneStore((state) => state.song.title);
+	const studioMode = useChiptuneStore((state) => state.studioMode);
+	// Each mode browses its own demos (modern engine vs. retro chiptune)
+	const demoSongs = studioMode === "modern" ? MODERN_DEMO_SONGS : DEMO_SONGS;
 	const loadDemoSong = useChiptuneStore((state) => state.loadDemoSong);
 	const loadSfxPreset = useChiptuneStore((state) => state.loadSfxPreset);
 	const setIsPlaying = useChiptuneStore((state) => state.setIsPlaying);
@@ -141,7 +145,7 @@ export const DemoSongBrowserDialog = ({
 	const normalizedQuery = searchQuery.trim().toLowerCase();
 
 	const filteredDemos = useMemo(() => {
-		return DEMO_SONGS.filter((demo) => {
+		return demoSongs.filter((demo) => {
 			const metadata = getDemoSongMetadata(demo.id);
 			if (
 				selectedDemoCategory !== "all" &&
@@ -165,7 +169,7 @@ export const DemoSongBrowserDialog = ({
 				.toLowerCase();
 			return searchableText.includes(normalizedQuery);
 		});
-	}, [normalizedQuery, selectedDemoCategory]);
+	}, [demoSongs, normalizedQuery, selectedDemoCategory]);
 
 	const filteredSfx = useMemo(() => {
 		return SFX_PRESETS.filter((preset) => {
@@ -193,19 +197,20 @@ export const DemoSongBrowserDialog = ({
 
 	const demoCategoryCounts = useMemo(() => {
 		const counts: Record<"all" | DemoSongCategory, number> = {
-			all: DEMO_SONGS.length,
+			all: demoSongs.length,
 			battle: 0,
 			breakcore: 0,
 			electronic: 0,
 			adventure: 0,
 			dungeon: 0,
+			ambient: 0,
 		};
-		for (const demo of DEMO_SONGS) {
+		for (const demo of demoSongs) {
 			const category = getDemoSongMetadata(demo.id).category;
 			counts[category] += 1;
 		}
 		return counts;
-	}, []);
+	}, [demoSongs]);
 
 	const sfxCategoryCounts = useMemo(() => {
 		const counts: Record<"all" | SfxCategory, number> = {
@@ -239,7 +244,7 @@ export const DemoSongBrowserDialog = ({
 	const visibleCount =
 		activeTab === "demos" ? filteredDemos.length : filteredSfx.length;
 	const totalCount =
-		activeTab === "demos" ? DEMO_SONGS.length : SFX_PRESETS.length;
+		activeTab === "demos" ? demoSongs.length : SFX_PRESETS.length;
 
 	return (
 		<dialog
@@ -255,7 +260,10 @@ export const DemoSongBrowserDialog = ({
 						<MusicalNoteIcon aria-hidden="true" className="size-5" />
 					</div>
 					<div>
-						<h2 className="text-base font-bold text-white sm:text-lg" id={titleId}>
+						<h2
+							className="text-base font-bold text-white sm:text-lg"
+							id={titleId}
+						>
 							Demo Song &amp; SFX Library
 						</h2>
 						<p className="text-xs text-slate-400">
@@ -286,7 +294,7 @@ export const DemoSongBrowserDialog = ({
 							<MusicalNoteIcon aria-hidden="true" className="size-3.5" />
 							<span>Demo Songs</span>
 							<span className="rounded-full bg-slate-950/70 px-1.5 py-0.5 font-mono text-[10px]">
-								{DEMO_SONGS.length}
+								{demoSongs.length}
 							</span>
 						</button>
 						<button

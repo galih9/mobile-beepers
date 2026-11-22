@@ -426,7 +426,10 @@ export const ProjectManagerDialog = ({
 							onOpenDemoBrowser("demos");
 						}}
 					>
-						<MusicalNoteIcon aria-hidden="true" className="size-4 text-cyan-300" />
+						<MusicalNoteIcon
+							aria-hidden="true"
+							className="size-4 text-cyan-300"
+						/>
 						<span>Browse Demo Songs ({DEMO_SONGS.length})</span>
 					</button>
 					<button
@@ -489,6 +492,7 @@ export const ProjectManagerDialog = ({
 										{item.title}
 									</p>
 									<p className="font-mono text-[10px] text-slate-400">
+										{item.engine === "modern" ? "Modern · " : ""}
 										{item.bpm} BPM · {item.totalBars} Bars
 									</p>
 								</button>

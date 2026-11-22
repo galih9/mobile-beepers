@@ -4,6 +4,7 @@ import type {
 	SongProject,
 	WaveformType,
 } from "../types/music";
+import { resolveArticulationShape, resolveGateSteps } from "./articulation";
 import { resolveRatchetCount } from "./noteRatchet";
 
 export interface MidiExportOptions {
@@ -74,6 +75,14 @@ export const getGeneralMidiProgramForWaveform = (
 			return 38; // Synth Bass 1
 		case "fm":
 			return 87; // Lead 8 (bass + lead)
+		case "piano":
+			return 0; // Acoustic Grand Piano
+		case "strings":
+			return 48; // String Ensemble 1
+		case "choir":
+			return 52; // Choir Aahs
+		case "sub808":
+			return 38; // Synth Bass 1
 		case "pulse12":
 		case "pulse25":
 		case "pulse50":
@@ -401,7 +410,11 @@ const buildChannelTrackChunk = (
 					swingTicks +
 					timingOffsetTicks
 			);
-			const durationSteps = Math.max(0.05, note.duration || 1);
+			// Articulation: staccato / marcato write shorter notes, accents louder ones
+			const durationSteps = Math.max(
+				0.05,
+				isDrum ? note.duration || 1 : resolveGateSteps(note)
+			);
 			const noteDurationTicks = Math.max(
 				1,
 				Math.round(durationSteps * ticksPerStep)
@@ -417,7 +430,14 @@ const buildChannelTrackChunk = (
 
 			const velocity = Math.min(
 				127,
-				Math.max(1, Math.round((note.velocity ?? 0.8) * 127))
+				Math.max(
+					1,
+					Math.round(
+						(note.velocity ?? 0.8) *
+							resolveArticulationShape(note.articulation).gainMultiplier *
+							127
+					)
+				)
 			);
 
 			// Note On (Priority 30)

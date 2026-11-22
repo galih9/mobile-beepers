@@ -2,8 +2,11 @@ import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useDrop } from "react-dnd";
 import type { FunctionComponent } from "../../../common/types";
-import { playPreviewNote } from "../audio/voiceSynthesizer";
-import { buildPianoRollRows } from "../constants/scalesAndNotes";
+import { playPreviewNote } from "../audio/channelPreview";
+import {
+	buildPianoRollRows,
+	MODERN_DRUM_PAD_DEFINITIONS,
+} from "../constants/scalesAndNotes";
 import {
 	getActivePatternForChannel,
 	getPatternIndexAtBar,
@@ -30,6 +33,9 @@ export const PianoRollEditor = (): FunctionComponent => {
 		(state) => state.defaultNoteVelocity
 	);
 	const showVelocityLane = useChiptuneStore((state) => state.showVelocityLane);
+	const defaultNoteArticulation = useChiptuneStore(
+		(state) => state.defaultNoteArticulation
+	);
 	const activeWorkspaceTab = useChiptuneStore(
 		(state) => state.activeWorkspaceTab
 	);
@@ -115,11 +121,20 @@ export const PianoRollEditor = (): FunctionComponent => {
 		if (!activeChannel) {
 			return [];
 		}
+		const modern = activeChannel.instrument.modern;
 		return buildPianoRollRows(
 			activeChannel.type,
 			song.rootKey,
 			song.scale,
-			scaleLockOnly
+			scaleLockOnly,
+			modern
+				? {
+						drumPads: MODERN_DRUM_PAD_DEFINITIONS,
+						...(modern.engine === "slicer"
+							? { sliceCount: modern.sliceCount ?? 16 }
+							: {}),
+					}
+				: {}
 		);
 	}, [activeChannel, song.rootKey, song.scale, scaleLockOnly]);
 
@@ -146,6 +161,15 @@ export const PianoRollEditor = (): FunctionComponent => {
 				};
 			});
 	}, [song.channels, selectedChannelIndex, selectedBarIndex]);
+
+	// Drum hits only take the weight articulations (accent / marcato)
+	const newNoteArticulation =
+		defaultNoteArticulation &&
+		(activeChannel?.type !== "drum" ||
+			defaultNoteArticulation === "accent" ||
+			defaultNoteArticulation === "marcato")
+			? defaultNoteArticulation
+			: undefined;
 
 	const isLargeViewport = containerWidth >= 700;
 	const rowHeight =
@@ -309,7 +333,14 @@ export const PianoRollEditor = (): FunctionComponent => {
 											: "bg-slate-950 text-slate-300"
 								}`}
 								onClick={(): void => {
-									playPreviewNote(row.pitch, activeChannel);
+									playPreviewNote(
+										row.pitch,
+										activeChannel,
+										undefined,
+										activeChannel.instrument.modern
+											? 60 / song.bpm / song.stepsPerBeat
+											: undefined
+									);
 								}}
 							>
 								<span className="truncate">{row.label}</span>
@@ -328,6 +359,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 							activeChannel={activeChannel}
 							activeNotes={activeNotes}
 							activeTool={activeTool}
+							defaultNoteArticulation={newNoteArticulation}
 							defaultNoteDuration={defaultNoteDuration}
 							defaultNoteVelocity={defaultNoteVelocity}
 							ghostChannels={ghostChannels}

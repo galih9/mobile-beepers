@@ -4,6 +4,7 @@ import type { FunctionComponent } from "../../../common/types";
 import { chiptunePlaybackEngine } from "../audio/playbackEngine";
 import { useChiptuneStore } from "../store/useChiptuneStore";
 import { InstrumentSlidersSection } from "./InstrumentSlidersSection";
+import { ModernInstrumentSection } from "./ModernInstrumentSection";
 import { SongSlidersSection } from "./SongSlidersSection";
 import { useCanvasPalette } from "./useCanvasPalette";
 
@@ -90,7 +91,7 @@ const ToneWaveformMonitor = ({
 		<div className="flex flex-col gap-1 rounded-lg border border-slate-800/90 bg-slate-900/60 p-2">
 			<div className="flex items-center justify-between text-[10px] font-semibold">
 				<span className="tracking-wider text-slate-300 uppercase">
-					Tone.js Master Scope
+					Master Scope
 				</span>
 				<span
 					className={`font-mono text-[9px] font-bold ${
@@ -128,6 +129,10 @@ export const InstrumentSynthPanel = (): FunctionComponent => {
 	const applyInstrumentPreset = useChiptuneStore(
 		(state) => state.applyInstrumentPreset
 	);
+	const updateModernSettings = useChiptuneStore(
+		(state) => state.updateModernSettings
+	);
+	const studioMode = useChiptuneStore((state) => state.studioMode);
 	const updateSongMetadata = useChiptuneStore(
 		(state) => state.updateSongMetadata
 	);
@@ -225,15 +230,28 @@ export const InstrumentSynthPanel = (): FunctionComponent => {
 							inspectorTab === "instrument" ? "block" : "hidden md:block"
 						}
 					>
-						<InstrumentSlidersSection
-							activeChannel={activeChannel}
-							channelCount={song.channels.length}
-							selectedChannelIndex={selectedChannelIndex}
-							onAddChannel={addChannel}
-							onApplyPreset={applyInstrumentPreset}
-							onRemoveChannel={removeChannel}
-							onUpdateInstrument={updateChannelInstrument}
-						/>
+						{studioMode === "modern" ? (
+							<ModernInstrumentSection
+								activeChannel={activeChannel}
+								channelCount={song.channels.length}
+								selectedChannelIndex={selectedChannelIndex}
+								onAddChannel={addChannel}
+								onApplyPreset={applyInstrumentPreset}
+								onRemoveChannel={removeChannel}
+								onUpdateInstrument={updateChannelInstrument}
+								onUpdateModern={updateModernSettings}
+							/>
+						) : (
+							<InstrumentSlidersSection
+								activeChannel={activeChannel}
+								channelCount={song.channels.length}
+								selectedChannelIndex={selectedChannelIndex}
+								onAddChannel={addChannel}
+								onApplyPreset={applyInstrumentPreset}
+								onRemoveChannel={removeChannel}
+								onUpdateInstrument={updateChannelInstrument}
+							/>
+						)}
 					</div>
 
 					<div

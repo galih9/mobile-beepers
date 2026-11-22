@@ -1,9 +1,26 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { createBlankSongProject, DEMO_SONGS } from "../constants/demoSongs";
+import {
+	ALL_DEMO_SONGS,
+	createBlankSongProject,
+	DEMO_SONGS,
+	MODERN_DEMO_SONGS,
+} from "../constants/demoSongs";
+import {
+	cloneModernPresetConfiguration,
+	createBlankModernProject,
+	createModernChannel,
+} from "../constants/modernProject";
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
 import { MAX_CHANNELS, MAX_SONG_BARS } from "../constants/limits";
 import { DEFAULT_THEME_MODE, isThemeMode } from "../constants/themes";
+import {
+	buildToolbarPreset,
+	DEFAULT_TOOLBAR_VISIBILITY,
+	isToolbarItemId,
+	normalizeToolbarVisibility,
+} from "../constants/toolbarItems";
+import { isNoteArticulation } from "../audio/articulation";
 import {
 	createBlankSfxProject,
 	generateProceduralSfxNotes,
@@ -13,10 +30,12 @@ import type {
 	BarMatrixSelection,
 	CopiedBarsClipboard,
 	HistorySnapshot,
+	InstrumentConfiguration,
 	MusicalKey,
 	ScaleType,
 	SfxGeneratorArchetype,
 	SongProject,
+	StudioMode,
 } from "../types/music";
 import {
 	clampNoteVelocity,
@@ -119,6 +138,97 @@ const SFX_ARCHETYPE_PRESET_MAP: Record<
 	blip: "gb-square-50",
 };
 
+/**
+ * Switching a channel between Sampler and Break Slicer keeps the sample the
+ * user already loaded, so trying both doesn't mean re-importing the file.
+ */
+const carryOverUserSample = (
+	previous: InstrumentConfiguration,
+	next: InstrumentConfiguration
+): InstrumentConfiguration => {
+	const previousModern = previous.modern;
+	const nextModern = next.modern;
+	if (
+		!previousModern?.sampleId ||
+		!nextModern ||
+		(nextModern.engine !== "sampler" && nextModern.engine !== "slicer") ||
+		nextModern.sampleId
+	) {
+		return next;
+	}
+	return {
+		...next,
+		modern: {
+			...nextModern,
+			sampleId: previousModern.sampleId,
+			...(previousModern.sampleName
+				? { sampleName: previousModern.sampleName }
+				: {}),
+		},
+	};
+};
+
+type ProjectBackupKey =
+	| "musicProjectBackup"
+	| "sfxProjectBackup"
+	| "modernProjectBackup";
+
+const BACKUP_KEY_BY_MODE: Record<StudioMode, ProjectBackupKey> = {
+	music: "musicProjectBackup",
+	sfx: "sfxProjectBackup",
+	modern: "modernProjectBackup",
+};
+
+/** Which mode a song belongs to when it is loaded from a demo / file */
+export const getSongStudioMode = (
+	song: SongProject,
+	fallback: StudioMode
+): StudioMode => {
+	if (song.engine === "modern") {
+		return "modern";
+	}
+	return fallback === "modern" ? "music" : fallback;
+};
+
+const createDefaultProjectForMode = (mode: StudioMode): SongProject => {
+	if (mode === "sfx") {
+		return cloneSongProject(getSfxPresetById("sfx-ray-gun").project);
+	}
+	if (mode === "modern") {
+		return cloneSongProject(MODERN_DEMO_SONGS[0] ?? createBlankModernProject());
+	}
+	return cloneSongProject(DEMO_SONGS[0] ?? createBlankSongProject("Neon Demo"));
+};
+
+/**
+ * State for entering `mode` with `song`: the outgoing project is parked in its
+ * own mode's backup slot so switching back restores it.
+ */
+const enterStudioMode = (
+	state: ChiptuneStoreState,
+	mode: StudioMode,
+	song: SongProject
+): Partial<ChiptuneStoreState> => ({
+	...(mode !== state.studioMode
+		? { [BACKUP_KEY_BY_MODE[state.studioMode]]: cloneSongProject(state.song) }
+		: {}),
+	studioMode: mode,
+	song,
+	loopMode: mode === "sfx" ? "once" : "song",
+	scaleLockOnly: mode !== "sfx",
+	selectedChannelIndex: 0,
+	selectedBarIndex: 0,
+	selectedNoteIds: [],
+	playbackBar: 0,
+	playbackStep: 0,
+	isPlaying: false,
+	past: [],
+	future: [],
+	canUndo: false,
+	canRedo: false,
+	barSelection: null,
+});
+
 export const useChiptuneStore = create<ChiptuneStoreState>()(
 	persist(
 		(set) => ({
@@ -126,6 +236,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			song: initialSong,
 			musicProjectBackup: null,
 			sfxProjectBackup: null,
+			modernProjectBackup: null,
 			savedSongs: [],
 			selectedChannelIndex: 0,
 			selectedBarIndex: 0,
@@ -136,6 +247,8 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			showVelocityLane: true,
 			selectedNoteIds: [],
 			themeMode: DEFAULT_THEME_MODE,
+			toolbarVisibility: DEFAULT_TOOLBAR_VISIBILITY,
+			defaultNoteArticulation: null,
 			paneLayout: { asideWidth: null, matrixHeight: null },
 			showNoteVelocityLabels: false,
 			pianoRollZoom: 1,
@@ -184,6 +297,31 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			setThemeMode: (themeMode): void => {
 				set({
 					themeMode: isThemeMode(themeMode) ? themeMode : DEFAULT_THEME_MODE,
+				});
+			},
+			setToolbarItemVisible: (itemId, visible): void => {
+				if (!isToolbarItemId(itemId)) {
+					return;
+				}
+				set((state) => ({
+					toolbarVisibility: {
+						...state.toolbarVisibility,
+						[itemId]: Boolean(visible),
+					},
+				}));
+			},
+			applyToolbarPreset: (preset): void => {
+				set({
+					toolbarVisibility: buildToolbarPreset(
+						preset === "everything" ? "everything" : "essentials"
+					),
+				});
+			},
+			setDefaultNoteArticulation: (articulation): void => {
+				set({
+					defaultNoteArticulation: isNoteArticulation(articulation)
+						? articulation
+						: null,
 				});
 			},
 			setPianoRollZoom: (zoom): void => {
@@ -268,9 +406,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						song: cloneSongProject(state.song),
 						selectedChannelIndex: state.selectedChannelIndex,
 						selectedBarIndex: state.selectedBarIndex,
-						barSelection: state.barSelection
-							? { ...state.barSelection }
-							: null,
+						barSelection: state.barSelection ? { ...state.barSelection } : null,
 					};
 					const future = [
 						...state.future.slice(-(MAX_HISTORY_STEPS - 1)),
@@ -313,9 +449,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						song: cloneSongProject(state.song),
 						selectedChannelIndex: state.selectedChannelIndex,
 						selectedBarIndex: state.selectedBarIndex,
-						barSelection: state.barSelection
-							? { ...state.barSelection }
-							: null,
+						barSelection: state.barSelection ? { ...state.barSelection } : null,
 					};
 					const past = [
 						...state.past.slice(-(MAX_HISTORY_STEPS - 1)),
@@ -325,8 +459,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					return {
 						song: cloneSongProject(nextSnapshot.song),
 						selectedChannelIndex: Math.min(
-							nextSnapshot.selectedChannelIndex ??
-								state.selectedChannelIndex,
+							nextSnapshot.selectedChannelIndex ?? state.selectedChannelIndex,
 							nextSnapshot.song.channels.length - 1
 						),
 						selectedBarIndex: Math.min(
@@ -413,10 +546,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						...history,
 						song: nextSong,
 						barSelection: pastedSelection,
-						selectedBarIndex: Math.min(
-							nextSong.totalBars - 1,
-							targetBarIndex
-						),
+						selectedBarIndex: Math.min(nextSong.totalBars - 1, targetBarIndex),
 						selectedChannelIndex: Math.min(
 							nextSong.channels.length - 1,
 							targetChan
@@ -444,18 +574,12 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						...history,
 						song: nextSong,
 						barSelection: nextSelection,
-						selectedBarIndex: Math.min(
-							nextSong.totalBars - 1,
-							targetBarIndex
-						),
+						selectedBarIndex: Math.min(nextSong.totalBars - 1, targetBarIndex),
 					};
 				});
 			},
 
-			duplicateSelectedBarsTo: (
-				targetBarIndex,
-				targetChannelIndex
-			): void => {
+			duplicateSelectedBarsTo: (targetBarIndex, targetChannelIndex): void => {
 				set((state) => {
 					const sel = state.barSelection ?? {
 						startBar: state.selectedBarIndex,
@@ -474,10 +598,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						...history,
 						song: nextSong,
 						barSelection: nextSelection,
-						selectedBarIndex: Math.min(
-							nextSong.totalBars - 1,
-							targetBarIndex
-						),
+						selectedBarIndex: Math.min(nextSong.totalBars - 1, targetBarIndex),
 					};
 				});
 			},
@@ -697,11 +818,18 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						return state;
 					}
 					const history = createHistoryRecord(state);
-					const created = createNewChannel(
-						channelType,
-						state.song.channels.length,
-						state.song.totalBars
-					);
+					const created =
+						state.studioMode === "modern"
+							? createModernChannel(
+									channelType,
+									state.song.channels.length,
+									state.song.totalBars
+								)
+							: createNewChannel(
+									channelType,
+									state.song.channels.length,
+									state.song.totalBars
+								);
 					return {
 						...history,
 						song: {
@@ -1157,9 +1285,45 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 									? {
 											...channel,
 											type: preset.category,
-											instrument: { ...preset.configuration },
+											instrument: carryOverUserSample(
+												channel.instrument,
+												cloneModernPresetConfiguration(presetId) ?? {
+													...preset.configuration,
+												}
+											),
 										}
 									: channel
+							),
+						},
+					};
+				});
+			},
+
+			updateModernSettings: (channelIndex, updates): void => {
+				set((state) => {
+					const channel = state.song.channels[channelIndex];
+					if (!channel?.instrument.modern) {
+						return state;
+					}
+					const history = createHistoryRecord(state, "instrument-param");
+					return {
+						...history,
+						song: {
+							...state.song,
+							updatedAt: Date.now(),
+							channels: state.song.channels.map((candidate, index) =>
+								index === channelIndex && candidate.instrument.modern
+									? {
+											...candidate,
+											instrument: {
+												...candidate.instrument,
+												modern: {
+													...candidate.instrument.modern,
+													...updates,
+												},
+											},
+										}
+									: candidate
 							),
 						},
 					};
@@ -1171,40 +1335,13 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (mode === state.studioMode) {
 						return state;
 					}
-					if (mode === "sfx") {
-						const defaultSfx = getSfxPresetById("sfx-ray-gun").project;
-						const nextSong = state.sfxProjectBackup
-							? cloneSongProject(state.sfxProjectBackup)
-							: cloneSongProject(defaultSfx);
-						return {
-							studioMode: "sfx",
-							musicProjectBackup: cloneSongProject(state.song),
-							song: nextSong,
-							loopMode: "once",
-							scaleLockOnly: false,
-							selectedChannelIndex: 0,
-							selectedBarIndex: 0,
-							playbackBar: 0,
-							playbackStep: 0,
-							isPlaying: false,
-						};
-					}
-					const defaultMusic =
-						DEMO_SONGS[0] ?? createBlankSongProject("Neon Demo");
-					const nextSong = state.musicProjectBackup
-						? cloneSongProject(state.musicProjectBackup)
-						: cloneSongProject(defaultMusic);
+					const backup = state[BACKUP_KEY_BY_MODE[mode]];
+					const nextSong = backup
+						? cloneSongProject(backup)
+						: createDefaultProjectForMode(mode);
 					return {
-						studioMode: "music",
-						sfxProjectBackup: cloneSongProject(state.song),
-						song: nextSong,
-						loopMode: "song",
-						scaleLockOnly: true,
-						selectedChannelIndex: 0,
-						selectedBarIndex: 0,
-						playbackBar: 0,
-						playbackStep: 0,
-						isPlaying: false,
+						...enterStudioMode(state, mode, nextSong),
+						[BACKUP_KEY_BY_MODE[mode]]: null,
 					};
 				});
 			},
@@ -1214,39 +1351,19 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					const preset = getSfxPresetById(presetId);
 					const targetProject = cloneSongProject(preset.project);
 					return {
-						studioMode: "sfx",
-						musicProjectBackup:
-							state.studioMode === "music"
-								? cloneSongProject(state.song)
-								: state.musicProjectBackup,
-						song: { ...targetProject, id: `sfx-${Date.now()}` },
-						loopMode: "once",
+						...enterStudioMode(state, "sfx", {
+							...targetProject,
+							id: `sfx-${Date.now()}`,
+						}),
 						scaleLockOnly: preset.category === "jingle",
-						selectedChannelIndex: 0,
-						selectedBarIndex: 0,
-						playbackBar: 0,
-						playbackStep: 0,
-						isPlaying: false,
 					};
 				});
 			},
 
 			createNewSfxProject: (): void => {
-				set((state) => ({
-					studioMode: "sfx",
-					musicProjectBackup:
-						state.studioMode === "music"
-							? cloneSongProject(state.song)
-							: state.musicProjectBackup,
-					song: createBlankSfxProject("New Retro SFX"),
-					loopMode: "once",
-					scaleLockOnly: false,
-					selectedChannelIndex: 0,
-					selectedBarIndex: 0,
-					playbackBar: 0,
-					playbackStep: 0,
-					isPlaying: false,
-				}));
+				set((state) =>
+					enterStudioMode(state, "sfx", createBlankSfxProject("New Retro SFX"))
+				);
 			},
 
 			generateSfxPattern: (archetype = "random"): void => {
@@ -1294,26 +1411,17 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 
 			loadDemoSong: (demoId): void => {
 				set((state) => {
-					const found = DEMO_SONGS.find((demo) => demo.id === demoId);
+					const found = ALL_DEMO_SONGS.find((demo) => demo.id === demoId);
 					const target = cloneSongProject(
 						found ?? DEMO_SONGS[0] ?? createBlankSongProject("Demo Song")
 					);
-					return {
-						studioMode: "music",
-						sfxProjectBackup:
-							state.studioMode === "sfx"
-								? cloneSongProject(state.song)
-								: state.sfxProjectBackup,
-						song: { ...target, id: `song-${Date.now()}` },
-						loopMode: "song",
-						scaleLockOnly: true,
-						selectedChannelIndex: 0,
-						selectedBarIndex: 0,
-						selectedNoteIds: [],
-						playbackBar: 0,
-						playbackStep: 0,
-						isPlaying: false,
-					};
+					const mode = getSongStudioMode(target, "music");
+					const entered = enterStudioMode(state, mode, {
+						...target,
+						id: `song-${Date.now()}`,
+					});
+					// Loading a demo keeps undo history behaviour of before (fresh song)
+					return entered;
 				});
 			},
 
@@ -1322,7 +1430,9 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					song:
 						state.studioMode === "sfx"
 							? createBlankSfxProject("New Retro SFX")
-							: createBlankSongProject("New Chiptune"),
+							: state.studioMode === "modern"
+								? createBlankModernProject("New Modern Track")
+								: createBlankSongProject("New Chiptune"),
 					selectedChannelIndex: 0,
 					selectedBarIndex: 0,
 					playbackBar: 0,
@@ -1338,20 +1448,14 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			},
 
 			importSongProject: (project): void => {
-				set({
-					song: cloneSongProject(project),
-					selectedChannelIndex: 0,
-					selectedBarIndex: 0,
-					selectedNoteIds: [],
-					playbackBar: 0,
-					playbackStep: 0,
-					isPlaying: false,
-					past: [],
-					future: [],
-					canUndo: false,
-					canRedo: false,
-					barSelection: null,
-					copiedBarsClipboard: null,
+				set((state) => {
+					const mode = getSongStudioMode(project, state.studioMode);
+					return {
+						...enterStudioMode(state, mode, cloneSongProject(project)),
+						loopMode: state.loopMode,
+						scaleLockOnly: state.scaleLockOnly,
+						copiedBarsClipboard: null,
+					};
 				});
 			},
 
@@ -1378,18 +1482,15 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					if (!found) {
 						return state;
 					}
+					const mode = getSongStudioMode(found, state.studioMode);
 					return {
-						song: cloneSongProject(found),
-						selectedChannelIndex: 0,
-						selectedBarIndex: 0,
-						playbackBar: 0,
-						playbackStep: 0,
-						isPlaying: false,
-						past: [],
-						future: [],
-						canUndo: false,
-						canRedo: false,
-						barSelection: null,
+						...enterStudioMode(state, mode, cloneSongProject(found)),
+						...(mode === state.studioMode
+							? {
+									loopMode: state.loopMode,
+									scaleLockOnly: state.scaleLockOnly,
+								}
+							: {}),
 						copiedBarsClipboard: null,
 					};
 				});
@@ -1407,6 +1508,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					song: createBlankSongProject("New Chiptune"),
 					musicProjectBackup: null,
 					sfxProjectBackup: null,
+					modernProjectBackup: null,
 					savedSongs: [],
 					selectedChannelIndex: 0,
 					selectedBarIndex: 0,
@@ -1414,6 +1516,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					activeTool: "draw",
 					defaultNoteDuration: 2,
 					defaultNoteVelocity: 0.9,
+					defaultNoteArticulation: null,
 					showVelocityLane: true,
 					selectedNoteIds: [],
 					pianoRollZoom: 1,
@@ -1440,6 +1543,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				song: state.song,
 				musicProjectBackup: state.musicProjectBackup,
 				sfxProjectBackup: state.sfxProjectBackup,
+				modernProjectBackup: state.modernProjectBackup,
 				savedSongs: state.savedSongs,
 				scaleLockOnly: state.scaleLockOnly,
 				showGhostNotes: state.showGhostNotes,
@@ -1447,6 +1551,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				defaultNoteVelocity: state.defaultNoteVelocity,
 				showVelocityLane: state.showVelocityLane,
 				themeMode: state.themeMode,
+				toolbarVisibility: state.toolbarVisibility,
 				paneLayout: state.paneLayout,
 				showNoteVelocityLabels: state.showNoteVelocityLabels,
 				followPlayhead: state.followPlayhead,
@@ -1454,6 +1559,14 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			onRehydrateStorage:
 				(): ((state?: ChiptuneStoreState) => void) =>
 				(state): void => {
+					if (state) {
+						state.toolbarVisibility = normalizeToolbarVisibility(
+							state.toolbarVisibility
+						);
+						if (!isThemeMode(state.themeMode)) {
+							state.themeMode = DEFAULT_THEME_MODE;
+						}
+					}
 					if (
 						(state?.song.id === "demo-neon-dungeon" ||
 							state?.song.id === "demo-house-125" ||

@@ -32,3 +32,6 @@ storybook-static
 
 # tests
 /coverage/
+
+# Modern-mode instrument samples (copied from node_modules by vite.config.ts)
+public/samples/

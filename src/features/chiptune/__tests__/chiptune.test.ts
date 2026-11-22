@@ -100,10 +100,13 @@ describe("useChiptuneStore", () => {
 		expect((generatedPattern?.notes.length ?? 0) > 0).toBe(true);
 	});
 
-	it("ships only the breakcore demos, Breakcore Battle v1 first", () => {
+	it("ships the breakcore demos + the menu ambience, Breakcore Battle v1 first", () => {
 		expect(DEMO_SONGS.map((demo) => demo.id)).toEqual([
 			"demo-breakcore-battle-v1",
 			"demo-amen-overdrive-180",
+			"demo-breakcore-petals-172",
+			"demo-breakcore-shattered-halo-175",
+			"demo-main-menu-ambience",
 		]);
 		useChiptuneStore.getState().loadDemoSong("demo-breakcore-battle-v1");
 		const { song } = useChiptuneStore.getState();
