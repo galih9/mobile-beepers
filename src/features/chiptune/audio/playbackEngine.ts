@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import type { LoopMode, SongProject } from "../types/music";
 import { buildNotePlaybackContext } from "./articulation";
+import { scheduleMetronomeClick } from "./metronome";
 import {
 	disposeModernRack,
 	getModernRack,
@@ -38,6 +39,19 @@ class ChiptunePlaybackEngine {
 	private onStepCallback: StepListener | null = null;
 	private onPlaybackEndedCallback: PlaybackEndedListener | null = null;
 	private finishTimeoutId: number | null = null;
+	private metronomeEnabled = false;
+	private metronomeVolume = 0.7;
+	private metronomeAccent = true;
+
+	public setMetronome(
+		enabled: boolean,
+		volume: number,
+		accentFirstBeat: boolean
+	): void {
+		this.metronomeEnabled = enabled;
+		this.metronomeVolume = Math.max(0.05, Math.min(1, volume));
+		this.metronomeAccent = accentFirstBeat;
+	}
 
 	public updateSong(
 		song: SongProject,
@@ -199,6 +213,20 @@ class ChiptunePlaybackEngine {
 		const isOddStep = this.currentStepIndex % 2 === 1;
 		const swingOffset = isOddStep ? song.swing * baseStepDuration * 0.45 : 0;
 		const scheduledTime = this.nextNoteTime + swingOffset;
+
+		if (
+			this.metronomeEnabled &&
+			song.stepsPerBeat > 0 &&
+			this.currentStepIndex % song.stepsPerBeat === 0
+		) {
+			scheduleMetronomeClick(
+				audioContext,
+				getLiveMasterInputNode(),
+				this.nextNoteTime,
+				this.metronomeAccent && this.currentStepIndex === 0,
+				this.metronomeVolume * song.masterVolume
+			);
+		}
 
 		const hasSoloChannel = song.channels.some((channel) => channel.solo);
 		// Modern songs mix every channel through the modern FX rack

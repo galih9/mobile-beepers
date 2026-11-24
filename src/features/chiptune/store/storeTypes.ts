@@ -23,7 +23,11 @@ import type {
 	ToolbarPreset,
 	ToolbarVisibility,
 } from "../constants/toolbarItems";
-import type { HumanizeOptions, NotePropertyUpdate } from "./songHelpers";
+import type {
+	ApplyRecordedNotesOptions,
+	HumanizeOptions,
+	NotePropertyUpdate,
+} from "./songHelpers";
 
 /** User-resized pane sizes in px (null = default responsive size) */
 export interface PaneLayout {
@@ -48,6 +52,8 @@ export interface PersistedChiptuneState {
 	paneLayout?: PaneLayout;
 	showNoteVelocityLabels?: boolean;
 	followPlayhead: boolean;
+	metronomeVolume?: number;
+	metronomeAccent?: boolean;
 }
 
 export interface ChiptuneStoreState {
@@ -87,6 +93,9 @@ export interface ChiptuneStoreState {
 	loopMode: LoopMode;
 	playbackBar: number;
 	playbackStep: number;
+	metronomeEnabled: boolean;
+	metronomeVolume: number;
+	metronomeAccent: boolean;
 	past: Array<HistorySnapshot>;
 	future: Array<HistorySnapshot>;
 	canUndo: boolean;
@@ -134,6 +143,10 @@ export interface ChiptuneStoreState {
 	setIsPlaying: (playing: boolean) => void;
 	setLoopMode: (mode: LoopMode) => void;
 	setPlaybackPosition: (barIndex: number, stepIndex: number) => void;
+	setMetronomeEnabled: (enabled: boolean) => void;
+	toggleMetronome: () => void;
+	setMetronomeVolume: (volume: number) => void;
+	setMetronomeAccent: (accent: boolean) => void;
 
 	updateSongMetadata: (
 		updates: Partial<
@@ -204,6 +217,7 @@ export interface ChiptuneStoreState {
 	clearCurrentPattern: () => void;
 	transposeCurrentPattern: (semitones: number) => void;
 	generateRiffForCurrentPattern: () => void;
+	applyRecordedNotesToChannel: (options: ApplyRecordedNotesOptions) => void;
 
 	updateChannelInstrument: (
 		channelIndex: number,

@@ -77,10 +77,16 @@ export const getGeneralMidiProgramForWaveform = (
 			return 87; // Lead 8 (bass + lead)
 		case "piano":
 			return 0; // Acoustic Grand Piano
+		case "organ":
+			return 17; // Percussive Organ
 		case "strings":
 			return 48; // String Ensemble 1
 		case "choir":
 			return 52; // Choir Aahs
+		case "acid":
+			return 39; // Synth Bass 2
+		case "hoover":
+			return 81; // Lead 2 (sawtooth)
 		case "sub808":
 			return 38; // Synth Bass 1
 		case "pulse12":

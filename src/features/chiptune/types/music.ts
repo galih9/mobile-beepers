@@ -35,6 +35,9 @@ export type WaveformType =
 	| "strings"
 	| "choir"
 	| "sub808"
+	| "organ"
+	| "acid"
+	| "hoover"
 	| "retroKit";
 
 export type ArpMode =
@@ -107,9 +110,10 @@ export type SongEngine = "chiptune" | "modern";
  * Modern-mode sound engines:
  * - grandPiano / strings / harp: real recorded samples (Salamander grand,
  *   violin + cello section, concert harp)
- * - superSaw / pad / pluck / softLead / ePiano / bell: polyphonic synths
- * - reeseBass / subBass: bass synths
- * - drumKit / breakKit: synthesized modern kits on the 8 drum pads
+ * - superSaw / pad / pluck / softLead / ePiano / bell / houseOrgan / acid303 /
+ *   hoover / vocalChop: polyphonic synths & classic electronic voices
+ * - reeseBass / subBass / fmBass: bass synths
+ * - drumKit / breakKit / houseKit / gabberKit: synthesized modern kits on the 8 drum pads
  * - sampler: your own sample played chromatically
  * - slicer: your own drum break chopped into equal slices (one per key)
  */
@@ -123,10 +127,17 @@ export type ModernEngine =
 	| "softLead"
 	| "ePiano"
 	| "bell"
+	| "houseOrgan"
+	| "acid303"
+	| "fmBass"
+	| "hoover"
+	| "vocalChop"
 	| "reeseBass"
 	| "subBass"
 	| "drumKit"
 	| "breakKit"
+	| "houseKit"
+	| "gabberKit"
 	| "sampler"
 	| "slicer";
 

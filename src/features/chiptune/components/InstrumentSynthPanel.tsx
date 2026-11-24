@@ -122,6 +122,7 @@ export const InstrumentSynthPanel = (): FunctionComponent => {
 	);
 	const scaleLockOnly = useChiptuneStore((state) => state.scaleLockOnly);
 	const showGhostNotes = useChiptuneStore((state) => state.showGhostNotes);
+	const metronomeEnabled = useChiptuneStore((state) => state.metronomeEnabled);
 
 	const updateChannelInstrument = useChiptuneStore(
 		(state) => state.updateChannelInstrument
@@ -145,6 +146,7 @@ export const InstrumentSynthPanel = (): FunctionComponent => {
 	const toggleShowGhostNotes = useChiptuneStore(
 		(state) => state.toggleShowGhostNotes
 	);
+	const toggleMetronome = useChiptuneStore((state) => state.toggleMetronome);
 
 	const activeChannel = song.channels[selectedChannelIndex] ?? song.channels[0];
 	if (!activeChannel) {
@@ -262,11 +264,13 @@ export const InstrumentSynthPanel = (): FunctionComponent => {
 						}
 					>
 						<SongSlidersSection
+							metronomeEnabled={metronomeEnabled}
 							scaleLockOnly={scaleLockOnly}
 							showGhostNotes={showGhostNotes}
 							song={song}
 							onSetTotalBars={setTotalBars}
 							onToggleGhostNotes={toggleShowGhostNotes}
+							onToggleMetronome={toggleMetronome}
 							onToggleScaleLock={toggleScaleLockOnly}
 							onUpdateMetadata={updateSongMetadata}
 						/>

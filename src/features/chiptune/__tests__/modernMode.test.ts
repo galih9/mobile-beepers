@@ -4,7 +4,10 @@ import {
 	getModernTailSeconds,
 	songUsesModernRack,
 } from "../audio/modern/modernRack";
-import { resolveSliceIndex } from "../audio/modern/modernVoices";
+import {
+	isModernDrumEngine,
+	resolveSliceIndex,
+} from "../audio/modern/modernVoices";
 import {
 	BUILT_IN_SAMPLE_ZONES,
 	sampleNoteNameToMidi,
@@ -126,9 +129,9 @@ describe("modern presets and demo", () => {
 			expect(getPresetConfigurationById(preset.id).id).toBe(preset.id);
 			expect(preset.configuration.presetId).toBe(preset.id);
 			expect(preset.configuration.modern).toBeDefined();
-			const isKit =
-				preset.configuration.modern?.engine === "drumKit" ||
-				preset.configuration.modern?.engine === "breakKit";
+			const isKit = preset.configuration.modern
+				? isModernDrumEngine(preset.configuration.modern.engine)
+				: false;
 			expect(preset.category).toBe(isKit ? "drum" : "pitch");
 		}
 	});

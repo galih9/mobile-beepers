@@ -4,6 +4,7 @@ import {
 	ArrowUturnLeftIcon,
 	ArrowUturnRightIcon,
 	BoltIcon,
+	ClockIcon,
 	Cog6ToothIcon,
 	FolderOpenIcon,
 	CpuChipIcon,
@@ -29,6 +30,7 @@ import { LcdReadout } from "./LcdReadout";
 
 interface TransportHeaderProps {
 	onOpenDemoBrowser: (initialTab?: DemoBrowserTab) => void;
+	onOpenMetronomeModal: () => void;
 	onOpenProjectModal: () => void;
 	onOpenResetModal: () => void;
 	onOpenSettings: (section?: SettingsSection) => void;
@@ -36,6 +38,7 @@ interface TransportHeaderProps {
 
 export const TransportHeader = ({
 	onOpenDemoBrowser,
+	onOpenMetronomeModal,
 	onOpenProjectModal,
 	onOpenResetModal,
 	onOpenSettings,
@@ -62,6 +65,8 @@ export const TransportHeader = ({
 	const undo = useChiptuneStore((state) => state.undo);
 	const redo = useChiptuneStore((state) => state.redo);
 	const setTotalBars = useChiptuneStore((state) => state.setTotalBars);
+	const metronomeEnabled = useChiptuneStore((state) => state.metronomeEnabled);
+	const toggleMetronome = useChiptuneStore((state) => state.toggleMetronome);
 	const show = useChiptuneStore((state) => state.toolbarVisibility);
 
 	useEffect(() => {
@@ -115,6 +120,12 @@ export const TransportHeader = ({
 				: "Looping full song";
 	const loopLabel =
 		loopMode === "once" ? "1-Shot" : loopMode === "bar" ? "Bar" : "Song";
+	const isMetronomeBeatFlash =
+		isPlaying &&
+		metronomeEnabled &&
+		song.stepsPerBeat > 0 &&
+		playbackStep % song.stepsPerBeat === 0;
+	const isMetronomeAccentFlash = isMetronomeBeatFlash && playbackStep === 0;
 
 	return (
 		<header className="safe-top-bar studio-chrome-text no-scrollbar flex h-12 shrink-0 items-center justify-between gap-2 overflow-x-auto pb-1.5 md:h-14 md:gap-3 md:overflow-visible md:px-3">
@@ -208,6 +219,51 @@ export const TransportHeader = ({
 					</div>
 				)}
 
+				{/* Metronome Click Toggle + BPM / Tap-Tempo Tool */}
+				{show.metronome && (
+					<div
+						aria-label="Metronome and tempo controls"
+						className="flex items-center rounded-md border border-slate-800 bg-slate-900 p-0.5"
+						role="group"
+					>
+						<button
+							aria-pressed={metronomeEnabled}
+							title="Toggle metronome click during playback"
+							type="button"
+							aria-label={
+								metronomeEnabled
+									? "Disable metronome click during playback"
+									: "Enable metronome click during playback"
+							}
+							className={`inline-flex h-6 items-center gap-1 rounded px-1.5 text-[11px] font-semibold transition ${
+								metronomeEnabled
+									? isMetronomeAccentFlash
+										? "bg-amber-400 text-slate-950"
+										: isMetronomeBeatFlash
+											? "bg-cyan-400 text-slate-950"
+											: "bg-cyan-500/20 text-cyan-200"
+									: "text-slate-400 hover:bg-slate-800 hover:text-white"
+							}`}
+							onClick={toggleMetronome}
+						>
+							<ClockIcon aria-hidden="true" className="size-3.5" />
+							<span className="hidden lg:inline">Click</span>
+						</button>
+						<button
+							aria-label={`Open metronome, tap tempo, and BPM presets (${Math.round(song.bpm)} BPM)`}
+							className="inline-flex h-6 items-center gap-0.5 rounded px-1.5 font-mono text-[11px] font-bold text-slate-200 transition hover:bg-slate-800 hover:text-cyan-200"
+							title="Open Metronome, Tap Tempo & Genre BPM Presets"
+							type="button"
+							onClick={onOpenMetronomeModal}
+						>
+							<span>{Math.round(song.bpm)}</span>
+							<span className="hidden text-[9px] text-slate-400 sm:inline">
+								BPM
+							</span>
+						</button>
+					</div>
+				)}
+
 				{show.loopMode && (
 					<button
 						aria-label={loopAriaLabel}
@@ -270,6 +326,7 @@ export const TransportHeader = ({
 					isPlaying={isPlaying}
 					keyLabel={`${song.rootKey} ${scaleLabel.toLowerCase()}`}
 					loopMode={loopMode}
+					metronomeEnabled={metronomeEnabled}
 					step={playbackStep + 1}
 					title={song.title}
 				/>

@@ -8,6 +8,7 @@ export type ToolbarItemId =
 	| "brand"
 	| "studioMode"
 	| "history"
+	| "metronome"
 	| "loopMode"
 	| "follow"
 	| "masterVolume"
@@ -22,6 +23,7 @@ export type ToolbarItemId =
 	| "articulation"
 	| "transpose"
 	| "zoom"
+	| "humToNotes"
 	| "riff"
 	| "clearPattern";
 
@@ -57,6 +59,13 @@ export const TOOLBAR_ITEMS: Array<ToolbarItemDefinition> = [
 		group: "top",
 		label: "Undo / Redo",
 		description: "Ctrl+Z and Ctrl+Y work even when hidden",
+		essential: true,
+	},
+	{
+		id: "metronome",
+		group: "top",
+		label: "Metronome & BPM",
+		description: "Click track toggle and tap-tempo BPM tool",
 		essential: true,
 	},
 	{
@@ -148,6 +157,14 @@ export const TOOLBAR_ITEMS: Array<ToolbarItemDefinition> = [
 		group: "piano",
 		label: "Zoom",
 		description: "Horizontal zoom of the piano roll",
+		essential: true,
+	},
+	{
+		id: "humToNotes",
+		group: "piano",
+		label: "Hum to notes",
+		description:
+			"Record humming or singing with pitch detection into piano roll notes",
 		essential: true,
 	},
 	{

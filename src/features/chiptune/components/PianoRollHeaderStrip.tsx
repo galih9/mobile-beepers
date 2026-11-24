@@ -6,6 +6,7 @@ import {
 	BackspaceIcon,
 	BoltIcon,
 	CursorArrowRaysIcon,
+	MicrophoneIcon,
 	PencilIcon,
 	SignalIcon,
 	SparklesIcon,
@@ -51,6 +52,7 @@ interface PianoRollHeaderStripProps {
 	onSelectDuration: (steps: number) => void;
 	onSelectZoom: (zoom: number) => void;
 	onTransposePattern: (semitones: number) => void;
+	onOpenHumModal: () => void;
 	onGenerateRiff: () => void;
 	onClearPattern: () => void;
 }
@@ -66,6 +68,7 @@ export const PianoRollHeaderStrip = ({
 	onSelectDuration,
 	onSelectZoom,
 	onTransposePattern,
+	onOpenHumModal,
 	onGenerateRiff,
 	onClearPattern,
 }: PianoRollHeaderStripProps): FunctionComponent => {
@@ -326,6 +329,19 @@ export const PianoRollHeaderStrip = ({
 							</button>
 						))}
 					</div>
+				)}
+
+				{show.humToNotes && (
+					<button
+						aria-label="Hum melody to notes"
+						className="inline-flex h-6 items-center gap-0.5 rounded border border-fuchsia-500/40 bg-fuchsia-500/15 px-1.5 text-[10px] font-semibold text-fuchsia-200 hover:bg-fuchsia-500/25"
+						title="Hum or sing a melody into piano roll notes"
+						type="button"
+						onClick={onOpenHumModal}
+					>
+						<MicrophoneIcon aria-hidden="true" className="size-3" />
+						<span>Hum</span>
+					</button>
 				)}
 
 				{show.riff && (

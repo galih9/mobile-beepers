@@ -53,6 +53,7 @@
     "i18next-http-backend": "^4.0.0",
     "idb-keyval": "^6.3.0",
     "konva": "^10.9.1",
+    "pitchy": "^4.1.0",
     "react": "^19.2.7",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",

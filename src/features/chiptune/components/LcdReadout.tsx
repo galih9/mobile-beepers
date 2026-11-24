@@ -9,6 +9,7 @@ interface LcdReadoutProps {
 	bpm: number;
 	keyLabel: string;
 	title: string;
+	metronomeEnabled?: boolean;
 }
 
 const pad = (value: number): string => String(value).padStart(2, "0");
@@ -26,6 +27,7 @@ export const LcdReadout = ({
 	bpm,
 	keyLabel,
 	title,
+	metronomeEnabled = false,
 }: LcdReadoutProps): FunctionComponent => {
 	return (
 		<div
@@ -66,7 +68,17 @@ export const LcdReadout = ({
 			</span>
 
 			<div className="flex shrink-0 flex-col text-[11px] leading-[1.1] font-medium">
-				<span className="gear-lcd-ink-2">{Math.round(bpm)} bpm</span>
+				<span className="flex items-center gap-1.5">
+					<span className="gear-lcd-ink-2">{Math.round(bpm)} bpm</span>
+					<span
+						aria-hidden="true"
+						className={`text-[9px] font-bold tracking-wider ${
+							metronomeEnabled ? "gear-lcd-ink-2" : "gear-lcd-ghost"
+						}`}
+					>
+						CLK
+					</span>
+				</span>
 				<span className="gear-lcd-ink">{keyLabel}</span>
 			</div>
 

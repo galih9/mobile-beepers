@@ -569,6 +569,7 @@ const createDriveStage = (
 
 const CINEMATIC_KIT_PRESET_ID = "cinematic-perc-kit";
 const HEAVY_BREAK_KIT_PRESET_ID = "breakcore-heavy-break-kit";
+const HOUSE_909_KIT_PRESET_ID = "house-909-kit";
 
 /**
  * Heavy break kit — modelled on the crushed, compressed sampled breaks of
@@ -687,6 +688,125 @@ const scheduleHeavyBreakKitVoice = (
 		case 7: {
 			kick(0.85);
 			snare(0.85);
+			return true;
+		}
+		default: {
+			return false;
+		}
+	}
+};
+
+/**
+ * 909 House Kit for chiptune mode: tight four-on-the-floor kick, crisp snare,
+ * tight/open hats, tom, rimshot, layered clap and shimmering ride.
+ */
+const scheduleHouse909KitVoice = (
+	audioContext: BaseAudioContext,
+	voiceBus: AudioNode,
+	pitch: number,
+	startTime: number,
+	pitchRatio: number
+): boolean => {
+	const assets = getAudioAssetsForContext(audioContext);
+	const hz = (value: number): number =>
+		Math.max(20, Math.min(18000, value * pitchRatio));
+
+	const addTone = (
+		type: OscillatorType,
+		fromFrequency: number,
+		toFrequency: number,
+		sweepSeconds: number,
+		level: number,
+		decaySeconds: number
+	): void => {
+		const oscillator = audioContext.createOscillator();
+		oscillator.type = type;
+		oscillator.frequency.setValueAtTime(hz(fromFrequency), startTime);
+		oscillator.frequency.exponentialRampToValueAtTime(
+			hz(toFrequency),
+			startTime + sweepSeconds
+		);
+		const gain = audioContext.createGain();
+		gain.gain.setValueAtTime(level, startTime);
+		gain.gain.exponentialRampToValueAtTime(0.0001, startTime + decaySeconds);
+		oscillator.connect(gain);
+		gain.connect(voiceBus);
+		oscillator.start(startTime);
+		oscillator.stop(startTime + decaySeconds + 0.02);
+	};
+
+	const addNoise = (
+		buffer: AudioBuffer,
+		filterType: BiquadFilterType,
+		frequency: number,
+		q: number,
+		level: number,
+		decaySeconds: number,
+		offsetSeconds = 0
+	): void => {
+		const begin = startTime + offsetSeconds;
+		const source = audioContext.createBufferSource();
+		source.buffer = buffer;
+		source.loop = true;
+		const filter = audioContext.createBiquadFilter();
+		filter.type = filterType;
+		filter.frequency.setValueAtTime(hz(frequency), begin);
+		filter.Q.value = q;
+		const gain = audioContext.createGain();
+		gain.gain.setValueAtTime(level, begin);
+		gain.gain.exponentialRampToValueAtTime(0.0001, begin + decaySeconds);
+		source.connect(filter);
+		filter.connect(gain);
+		gain.connect(voiceBus);
+		source.start(begin);
+		source.stop(begin + decaySeconds + 0.02);
+	};
+
+	switch (pitch) {
+		case 0: {
+			addTone("sine", 185, 50, 0.055, 1.0, 0.28);
+			addNoise(assets.whiteNoiseBuffer, "bandpass", 3200, 1, 0.4, 0.012);
+			return true;
+		}
+		case 1: {
+			addTone("triangle", 195, 150, 0.04, 0.65, 0.11);
+			addNoise(assets.whiteNoiseBuffer, "highpass", 1800, 0.8, 0.72, 0.15);
+			return true;
+		}
+		case 2: {
+			addNoise(assets.metallicNoiseBuffer, "highpass", 7800, 0.8, 0.5, 0.042);
+			return true;
+		}
+		case 3: {
+			addNoise(assets.metallicNoiseBuffer, "highpass", 7200, 0.8, 0.55, 0.34);
+			return true;
+		}
+		case 4: {
+			addTone("sine", 150, 88, 0.1, 0.75, 0.24);
+			return true;
+		}
+		case 5: {
+			addTone("triangle", 440, 360, 0.02, 0.58, 0.045);
+			addNoise(assets.whiteNoiseBuffer, "bandpass", 1650, 1.4, 0.45, 0.025);
+			return true;
+		}
+		case 6: {
+			[0, 0.01, 0.02, 0.03].forEach((offset, index) => {
+				addNoise(
+					assets.whiteNoiseBuffer,
+					"bandpass",
+					1300,
+					1.1,
+					index === 3 ? 0.65 : 0.48,
+					index === 3 ? 0.2 : 0.03,
+					offset
+				);
+			});
+			return true;
+		}
+		case 7: {
+			addNoise(assets.metallicNoiseBuffer, "highpass", 5800, 0.8, 0.48, 0.75);
+			addTone("sine", 3400, 3320, 0.1, 0.12, 0.45);
 			return true;
 		}
 		default: {
@@ -1095,6 +1215,19 @@ const scheduleDrumHit = (
 	if (
 		instrument.presetId === HEAVY_BREAK_KIT_PRESET_ID &&
 		scheduleHeavyBreakKitVoice(
+			audioContext,
+			voiceBus,
+			pitch,
+			startTime,
+			pitchRatio
+		)
+	) {
+		return;
+	}
+
+	if (
+		instrument.presetId === HOUSE_909_KIT_PRESET_ID &&
+		scheduleHouse909KitVoice(
 			audioContext,
 			voiceBus,
 			pitch,
@@ -1588,6 +1721,95 @@ const scheduleChoirVoices = (
 	breath.stop(stopTime);
 };
 
+/** Additive drawbar house organ partials + percussive key-click */
+const scheduleOrganPartials = (
+	audioContext: BaseAudioContext,
+	bus: AudioNode,
+	baseFrequency: number,
+	startTime: number,
+	stopTime: number,
+	detuneCents: number,
+	oscillators: Array<OscillatorNode>,
+	oscillatorRatios: Map<OscillatorNode, number>
+): void => {
+	const partials: Array<[ratio: number, gain: number]> = [
+		[0.5, 0.5],
+		[1, 0.9],
+		[1.5, 0.4],
+		[2, 0.58],
+		[3, 0.22],
+	];
+	for (const [ratio, level] of partials) {
+		if (baseFrequency * ratio > 14_000) {
+			continue;
+		}
+		const oscillator = audioContext.createOscillator();
+		oscillator.type = "sine";
+		oscillator.frequency.setValueAtTime(baseFrequency * ratio, startTime);
+		oscillator.detune.setValueAtTime(detuneCents, startTime);
+		const gain = audioContext.createGain();
+		gain.gain.value = level * 0.45;
+		oscillator.connect(gain);
+		gain.connect(bus);
+		oscillators.push(oscillator);
+		oscillatorRatios.set(oscillator, ratio);
+	}
+	const clickOscillator = audioContext.createOscillator();
+	clickOscillator.type = "sine";
+	clickOscillator.frequency.setValueAtTime(
+		Math.min(14_000, baseFrequency * 4),
+		startTime
+	);
+	clickOscillator.detune.setValueAtTime(detuneCents, startTime);
+	const clickGain = audioContext.createGain();
+	clickGain.gain.setValueAtTime(0.2, startTime);
+	clickGain.gain.exponentialRampToValueAtTime(
+		0.0001,
+		Math.min(stopTime, startTime + 0.028)
+	);
+	clickOscillator.connect(clickGain);
+	clickGain.connect(bus);
+	oscillators.push(clickOscillator);
+	oscillatorRatios.set(clickOscillator, 4);
+};
+
+/** Rave Hoover: 4 detuned saws + sub with signature attack pitch-scoop */
+const scheduleHooverVoices = (
+	audioContext: BaseAudioContext,
+	bus: AudioNode,
+	baseFrequency: number,
+	startTime: number,
+	detuneCents: number,
+	oscillators: Array<OscillatorNode>,
+	oscillatorRatios: Map<OscillatorNode, number>
+): void => {
+	const scoopEnd = startTime + 0.095;
+	const detuneOffsets = [-22, -7, 7, 22];
+	for (const offset of detuneOffsets) {
+		const oscillator = audioContext.createOscillator();
+		oscillator.type = "sawtooth";
+		oscillator.frequency.setValueAtTime(baseFrequency, startTime);
+		oscillator.detune.setValueAtTime(detuneCents + offset - 350, startTime);
+		oscillator.detune.linearRampToValueAtTime(detuneCents + offset, scoopEnd);
+		const subGain = audioContext.createGain();
+		subGain.gain.value = 0.28;
+		oscillator.connect(subGain);
+		subGain.connect(bus);
+		oscillators.push(oscillator);
+	}
+	const subOscillator = audioContext.createOscillator();
+	subOscillator.type = "triangle";
+	subOscillator.frequency.setValueAtTime(baseFrequency * 0.5, startTime);
+	subOscillator.detune.setValueAtTime(detuneCents - 350, startTime);
+	subOscillator.detune.linearRampToValueAtTime(detuneCents, scoopEnd);
+	const subLevel = audioContext.createGain();
+	subLevel.gain.value = 0.35;
+	subOscillator.connect(subLevel);
+	subLevel.connect(bus);
+	oscillators.push(subOscillator);
+	oscillatorRatios.set(subOscillator, 0.5);
+};
+
 export const scheduleChannelNote = (
 	audioContext: BaseAudioContext,
 	destination: AudioNode,
@@ -1797,13 +2019,27 @@ export const scheduleChannelNote = (
 			startCutoff,
 			startTime + Math.max(0.02, Math.min(0.09, noteDurationSeconds * 0.6))
 		);
+	} else if (
+		instrument.waveform === "acid" &&
+		note.filterSweepTo === undefined
+	) {
+		lowPassFilter.frequency.setValueAtTime(
+			Math.min(14000, startCutoff * 3.2),
+			startTime
+		);
+		lowPassFilter.frequency.exponentialRampToValueAtTime(
+			startCutoff,
+			startTime + Math.max(0.04, Math.min(0.14, noteDurationSeconds * 0.7))
+		);
 	} else {
 		lowPassFilter.frequency.setValueAtTime(startCutoff, startTime);
 	}
 	lowPassFilter.Q.value =
 		note.filterCutoff !== undefined || note.filterSweepTo !== undefined
 			? 2.2
-			: 1.1;
+			: instrument.waveform === "acid"
+				? 6.5
+				: 1.1;
 	if (note.filterSweepTo !== undefined) {
 		const endCutoff = Math.max(180, Math.min(14000, note.filterSweepTo));
 		lowPassFilter.frequency.exponentialRampToValueAtTime(
@@ -1919,6 +2155,34 @@ export const scheduleChannelNote = (
 			instrument.detuneCents,
 			oscillators
 		);
+	} else if (instrument.waveform === "organ") {
+		scheduleOrganPartials(
+			audioContext,
+			oscillatorBus,
+			baseFrequency,
+			startTime,
+			stopTime,
+			instrument.detuneCents,
+			oscillators,
+			oscillatorRatios
+		);
+	} else if (instrument.waveform === "hoover") {
+		scheduleHooverVoices(
+			audioContext,
+			oscillatorBus,
+			baseFrequency,
+			startTime,
+			instrument.detuneCents,
+			oscillators,
+			oscillatorRatios
+		);
+	} else if (instrument.waveform === "acid") {
+		const oscillator = audioContext.createOscillator();
+		oscillator.type = "sawtooth";
+		oscillator.frequency.setValueAtTime(baseFrequency, startTime);
+		oscillator.detune.setValueAtTime(instrument.detuneCents, startTime);
+		oscillator.connect(oscillatorBus);
+		oscillators.push(oscillator);
 	} else {
 		const oscillator = audioContext.createOscillator();
 		applyWaveformToOscillator(audioContext, oscillator, instrument.waveform);

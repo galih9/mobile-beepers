@@ -38,6 +38,7 @@ import type {
 	StudioMode,
 } from "../types/music";
 import {
+	applyRecordedNotesToSong,
 	clampNoteVelocity,
 	clearBarsInSong,
 	clonePatternToBarInSong,
@@ -259,6 +260,9 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 			loopMode: "song",
 			playbackBar: 0,
 			playbackStep: 0,
+			metronomeEnabled: false,
+			metronomeVolume: 0.7,
+			metronomeAccent: true,
 			past: [],
 			future: [],
 			canUndo: false,
@@ -390,6 +394,21 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						selectedBarIndex: nextSelectedBar,
 					};
 				});
+			},
+			setMetronomeEnabled: (enabled): void => {
+				set({ metronomeEnabled: Boolean(enabled) });
+			},
+			toggleMetronome: (): void => {
+				set((state) => ({ metronomeEnabled: !state.metronomeEnabled }));
+			},
+			setMetronomeVolume: (volume): void => {
+				const clamped = Number.isFinite(volume)
+					? Math.max(0.1, Math.min(1, volume))
+					: 0.7;
+				set({ metronomeVolume: clamped });
+			},
+			setMetronomeAccent: (accent): void => {
+				set({ metronomeAccent: Boolean(accent) });
 			},
 
 			undo: (): void => {
@@ -1247,6 +1266,26 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				});
 			},
 
+			applyRecordedNotesToChannel: (options): void => {
+				set((state) => {
+					const history = createHistoryRecord(state);
+					const nextSong = applyRecordedNotesToSong(state.song, options);
+					return {
+						...history,
+						song: nextSong,
+						selectedChannelIndex: Math.max(
+							0,
+							Math.min(nextSong.channels.length - 1, options.channelIndex)
+						),
+						selectedBarIndex: Math.max(
+							0,
+							Math.min(nextSong.totalBars - 1, options.startBarIndex)
+						),
+						selectedNoteIds: [],
+					};
+				});
+			},
+
 			updateChannelInstrument: (channelIndex, updates): void => {
 				set((state) => {
 					const history = createHistoryRecord(state, "instrument-param");
@@ -1527,6 +1566,7 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 					loopMode: "song",
 					playbackBar: 0,
 					playbackStep: 0,
+					metronomeEnabled: false,
 					past: [],
 					future: [],
 					canUndo: false,
@@ -1555,6 +1595,8 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 				paneLayout: state.paneLayout,
 				showNoteVelocityLabels: state.showNoteVelocityLabels,
 				followPlayhead: state.followPlayhead,
+				metronomeVolume: state.metronomeVolume,
+				metronomeAccent: state.metronomeAccent,
 			}),
 			onRehydrateStorage:
 				(): ((state?: ChiptuneStoreState) => void) =>
@@ -1565,6 +1607,15 @@ export const useChiptuneStore = create<ChiptuneStoreState>()(
 						);
 						if (!isThemeMode(state.themeMode)) {
 							state.themeMode = DEFAULT_THEME_MODE;
+						}
+						if (
+							typeof state.metronomeVolume !== "number" ||
+							!Number.isFinite(state.metronomeVolume)
+						) {
+							state.metronomeVolume = 0.7;
+						}
+						if (typeof state.metronomeAccent !== "boolean") {
+							state.metronomeAccent = true;
 						}
 					}
 					if (

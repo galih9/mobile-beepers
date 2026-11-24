@@ -4,6 +4,7 @@ import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import type { FunctionComponent } from "../../../common/types";
 import { registerChiptuneAgentApi } from "../api/chiptuneAgentApi";
+import { standaloneMetronome } from "../audio/metronome";
 import { chiptunePlaybackEngine } from "../audio/playbackEngine";
 import { THEME_OPTIONS } from "../constants/themes";
 import { useChiptuneStore } from "../store/useChiptuneStore";
@@ -13,7 +14,9 @@ import {
 	DemoSongBrowserDialog,
 	type DemoBrowserTab,
 } from "./DemoSongBrowserDialog";
+import { HumToNotesDialog } from "./HumToNotesDialog";
 import { InstrumentSynthPanel } from "./InstrumentSynthPanel";
+import { MetronomeDialog } from "./MetronomeDialog";
 import { PaneResizeHandle } from "./PaneResizeHandle";
 import { PianoRollEditor } from "./PianoRollEditor";
 import { ProjectManagerDialog } from "./ProjectManagerDialog";
@@ -36,6 +39,8 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 	const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 	const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+	const [isMetronomeModalOpen, setIsMetronomeModalOpen] = useState(false);
+	const [isHumModalOpen, setIsHumModalOpen] = useState(false);
 	const [settingsSection, setSettingsSection] =
 		useState<SettingsSection>("mode");
 	const [demoBrowserTab, setDemoBrowserTab] = useState<DemoBrowserTab | null>(
@@ -60,6 +65,9 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 	const themeMode = useChiptuneStore((state) => state.themeMode);
 	const paneLayout = useChiptuneStore((state) => state.paneLayout);
 	const setPaneLayout = useChiptuneStore((state) => state.setPaneLayout);
+	const metronomeEnabled = useChiptuneStore((state) => state.metronomeEnabled);
+	const metronomeVolume = useChiptuneStore((state) => state.metronomeVolume);
+	const metronomeAccent = useChiptuneStore((state) => state.metronomeAccent);
 
 	const mainRef = useRef<HTMLElement | null>(null);
 	const matrixPaneRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +115,7 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 			chiptunePlaybackEngine.setStepListener(null);
 			chiptunePlaybackEngine.setPlaybackEndedListener(null);
 			chiptunePlaybackEngine.stop();
+			standaloneMetronome.stop();
 		};
 	}, [setIsPlaying, setPlaybackPosition]);
 
@@ -124,6 +133,22 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 	useEffect(() => {
 		chiptunePlaybackEngine.updateSong(song, loopMode, selectedBarIndex);
 	}, [song, loopMode, selectedBarIndex]);
+
+	// Keep metronome settings synced into playback engine
+	useEffect(() => {
+		chiptunePlaybackEngine.setMetronome(
+			metronomeEnabled,
+			metronomeVolume,
+			metronomeAccent
+		);
+	}, [metronomeEnabled, metronomeVolume, metronomeAccent]);
+
+	// Stop standalone metronome if song playback begins
+	useEffect(() => {
+		if (isPlaying) {
+			standaloneMetronome.stop();
+		}
+	}, [isPlaying]);
 
 	// Global Keyboard Shortcuts (outside text inputs):
 	// Space = Play/Pause, Ctrl/Cmd+Z = Undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y = Redo,
@@ -238,6 +263,9 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 					onOpenDemoBrowser={(tab = "demos"): void => {
 						setDemoBrowserTab(tab);
 					}}
+					onOpenMetronomeModal={(): void => {
+						setIsMetronomeModalOpen(true);
+					}}
 					onOpenProjectModal={(): void => {
 						setIsProjectModalOpen(true);
 					}}
@@ -310,7 +338,11 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 								: "hidden"
 						} md:col-span-2 md:row-start-1 md:flex lg:col-span-1 lg:col-start-1 lg:row-start-1`}
 					>
-						<PianoRollEditor />
+						<PianoRollEditor
+							onOpenHumModal={(): void => {
+								setIsHumModalOpen(true);
+							}}
+						/>
 					</div>
 
 					{/* Pane 2: Drag-and-Drop Song Matrix */}
@@ -418,6 +450,20 @@ export const ChiptuneStudioPage = (): FunctionComponent => {
 					isOpen={isResetModalOpen}
 					onClose={(): void => {
 						setIsResetModalOpen(false);
+					}}
+				/>
+
+				<MetronomeDialog
+					isOpen={isMetronomeModalOpen}
+					onClose={(): void => {
+						setIsMetronomeModalOpen(false);
+					}}
+				/>
+
+				<HumToNotesDialog
+					isOpen={isHumModalOpen}
+					onClose={(): void => {
+						setIsHumModalOpen(false);
 					}}
 				/>
 			</div>

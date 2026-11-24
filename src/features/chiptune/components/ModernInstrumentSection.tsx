@@ -13,6 +13,7 @@ import {
 	type ReactNode,
 } from "react";
 import type { FunctionComponent } from "../../../common/types";
+import { isModernDrumEngine } from "../audio/modern/modernVoices";
 import {
 	ENGINE_SAMPLE_INSTRUMENT,
 	getBuiltInInstrumentStatus,
@@ -320,7 +321,7 @@ export const ModernInstrumentSection = ({
 	const settings = instrument.modern;
 	const accentColor = activeChannel.color;
 	const engine = settings?.engine;
-	const isDrumKit = engine === "drumKit" || engine === "breakKit";
+	const isDrumKit = engine ? isModernDrumEngine(engine) : false;
 	const isSampleEngine = engine === "sampler" || engine === "slicer";
 	const builtInInstrument = engine
 		? ENGINE_SAMPLE_INSTRUMENT[engine]

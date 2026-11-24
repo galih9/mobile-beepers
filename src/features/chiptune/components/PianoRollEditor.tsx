@@ -19,7 +19,13 @@ import { PianoRollHeaderStrip } from "./PianoRollHeaderStrip";
 import { VelocityLane } from "./VelocityLane";
 import { VELOCITY_LANE_HEIGHT } from "./velocityLaneMath";
 
-export const PianoRollEditor = (): FunctionComponent => {
+interface PianoRollEditorProps {
+	onOpenHumModal: () => void;
+}
+
+export const PianoRollEditor = ({
+	onOpenHumModal,
+}: PianoRollEditorProps): FunctionComponent => {
 	const song = useChiptuneStore((state) => state.song);
 	const selectedChannelIndex = useChiptuneStore(
 		(state) => state.selectedChannelIndex
@@ -281,6 +287,7 @@ export const PianoRollEditor = (): FunctionComponent => {
 				selectedBarIndex={selectedBarIndex}
 				onClearPattern={clearCurrentPattern}
 				onGenerateRiff={generateRiffForCurrentPattern}
+				onOpenHumModal={onOpenHumModal}
 				onSelectDuration={setDefaultNoteDuration}
 				onSelectTool={setActiveTool}
 				onSelectZoom={setPianoRollZoom}

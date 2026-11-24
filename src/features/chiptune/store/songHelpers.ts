@@ -1185,3 +1185,213 @@ export const getNextSectionName = (song: SongProject): string => {
 	}
 	return `Section ${(song.sections?.length ?? 0) + 1}`;
 };
+
+export type RecordedNotesInsertMode = "replace" | "merge";
+
+export interface ApplyRecordedNotesOptions {
+	channelIndex: number;
+	startBarIndex: number;
+	notesByBar: Array<Array<Omit<NoteEvent, "id">>>;
+	mode: RecordedNotesInsertMode;
+}
+
+/**
+ * Writes multi-bar captured notes into a channel, allocating fresh pattern
+ * slots if a bar slot is empty or shared across bars, and extending song bars
+ * if the take runs past the current end of the song.
+ */
+export const applyRecordedNotesToSong = (
+	song: SongProject,
+	options: ApplyRecordedNotesOptions
+): SongProject => {
+	const targetChannel = song.channels[options.channelIndex];
+	if (!targetChannel || options.notesByBar.length === 0) {
+		return song;
+	}
+
+	const stepsPerBar = getStepsPerBar(song);
+	const clampedStartBar = Math.max(
+		0,
+		Math.min(MAX_SONG_BARS - 1, Math.round(options.startBarIndex))
+	);
+	const neededBars = Math.min(
+		MAX_SONG_BARS,
+		Math.max(song.totalBars, clampedStartBar + options.notesByBar.length)
+	);
+
+	const nextBarSequence = Array.from(
+		{ length: neededBars },
+		(_, index) => targetChannel.barSequence[index] ?? 0
+	);
+	const nextPatterns: Record<string, Pattern> = { ...targetChannel.patterns };
+
+	// Track how many bars reference each pattern so shared patterns are never overwritten in place
+	const usageCount = new Map<number, number>();
+	for (const patternNumber of nextBarSequence) {
+		if (patternNumber > 0) {
+			usageCount.set(patternNumber, (usageCount.get(patternNumber) ?? 0) + 1);
+		}
+	}
+
+	let noteCounter = 0;
+	const stamp = Date.now();
+	const cloneNoteWithFreshId = (note: NoteEvent): NoteEvent => {
+		noteCounter += 1;
+		return {
+			...note,
+			id: `note-${note.step}-${note.pitch}-${stamp}-${noteCounter}`,
+		};
+	};
+
+	const maxPitch = targetChannel.type === "drum" ? 7 : MELODIC_MAX_MIDI;
+	const minPitch = targetChannel.type === "drum" ? 0 : MELODIC_MIN_MIDI;
+	let lastWrittenBar = clampedStartBar;
+
+	options.notesByBar.forEach((rawNotes, barOffset) => {
+		const barIndex = clampedStartBar + barOffset;
+		if (barIndex >= neededBars) {
+			return;
+		}
+		lastWrittenBar = Math.max(lastWrittenBar, barIndex);
+
+		const existingPatternIndex = nextBarSequence[barIndex] ?? 0;
+		const existingUsage = usageCount.get(existingPatternIndex) ?? 0;
+
+		if (rawNotes.length === 0) {
+			if (options.mode === "merge") {
+				return;
+			}
+			if (existingPatternIndex <= 0) {
+				return;
+			}
+			if (existingUsage > 1) {
+				usageCount.set(existingPatternIndex, existingUsage - 1);
+				nextBarSequence[barIndex] = 0;
+				return;
+			}
+			nextPatterns[String(existingPatternIndex)] = {
+				index: existingPatternIndex,
+				notes: [],
+			};
+			return;
+		}
+
+		let targetPatternIndex = existingPatternIndex;
+		let baseNotes: Array<NoteEvent> = [];
+
+		if (existingPatternIndex <= 0 || existingUsage > 1) {
+			targetPatternIndex = getNextAvailablePatternIndex({
+				...targetChannel,
+				barSequence: nextBarSequence,
+				patterns: nextPatterns,
+			});
+			if (existingPatternIndex > 0) {
+				usageCount.set(existingPatternIndex, Math.max(0, existingUsage - 1));
+				if (options.mode === "merge") {
+					const sourceNotes =
+						nextPatterns[String(existingPatternIndex)]?.notes ?? [];
+					baseNotes = sourceNotes.map(cloneNoteWithFreshId);
+				}
+			}
+			usageCount.set(targetPatternIndex, 1);
+			nextBarSequence[barIndex] = targetPatternIndex;
+		} else if (options.mode === "merge") {
+			baseNotes = [...(nextPatterns[String(existingPatternIndex)]?.notes ?? [])];
+		}
+
+		const incomingNotes: Array<NoteEvent> = rawNotes.map((raw) => {
+			noteCounter += 1;
+			const step = Math.max(
+				0,
+				Math.min(stepsPerBar - 1, Math.round(raw.step))
+			);
+			const pitch = Math.max(
+				minPitch,
+				Math.min(maxPitch, Math.round(raw.pitch))
+			);
+			const duration = Math.max(
+				1,
+				Math.min(stepsPerBar - step, Math.round(raw.duration))
+			);
+			return {
+				...raw,
+				id: `hum-${step}-${pitch}-${stamp}-${noteCounter}`,
+				step,
+				pitch,
+				duration,
+				velocity: clampNoteVelocity(raw.velocity),
+				pitchBend: raw.pitchBend ?? 0,
+			};
+		});
+
+		const occupiedByIncoming = new Set(
+			incomingNotes.map((note) => `${note.step}:${note.pitch}`)
+		);
+		const combinedNotes =
+			options.mode === "merge"
+				? [
+						...baseNotes.filter(
+							(existing) =>
+								!occupiedByIncoming.has(`${existing.step}:${existing.pitch}`)
+						),
+						...incomingNotes,
+					]
+				: incomingNotes;
+
+		combinedNotes.sort((first, second) =>
+			first.step !== second.step
+				? first.step - second.step
+				: first.pitch - second.pitch
+		);
+
+		nextPatterns[String(targetPatternIndex)] = {
+			index: targetPatternIndex,
+			notes: combinedNotes,
+		};
+	});
+
+	const nextChannels = song.channels.map((channel, index) => {
+		if (index === options.channelIndex) {
+			return {
+				...channel,
+				barSequence: nextBarSequence,
+				patterns: nextPatterns,
+			};
+		}
+		if (neededBars > song.totalBars) {
+			return {
+				...channel,
+				barSequence: Array.from(
+					{ length: neededBars },
+					(_, barIndex) => channel.barSequence[barIndex] ?? 0
+				),
+			};
+		}
+		return channel;
+	});
+
+	const loopStartBar = Math.max(
+		0,
+		Math.min(neededBars - 1, song.loopStartBar ?? 0)
+	);
+	let loopEndBar = Math.max(
+		loopStartBar,
+		Math.min(neededBars - 1, song.loopEndBar ?? neededBars - 1)
+	);
+	if (
+		clampedStartBar >= loopStartBar &&
+		clampedStartBar <= loopEndBar &&
+		lastWrittenBar > loopEndBar
+	) {
+		loopEndBar = Math.min(neededBars - 1, lastWrittenBar);
+	}
+
+	return {
+		...song,
+		totalBars: neededBars,
+		loopStartBar,
+		loopEndBar,
+		channels: nextChannels,
+		updatedAt: stamp,
+	};
+};

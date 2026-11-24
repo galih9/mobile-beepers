@@ -593,6 +593,460 @@ const scheduleFmVoice = (
 	});
 };
 
+/** Korg M1 / drawbar house organ: additive sine partials + percussive key-click */
+const scheduleHouseOrganVoice = (request: VoiceRequest): void => {
+	const { context, settings, startTime, endTime } = request;
+	const shape = resolveShape(request);
+	const filter = createFilterWithEnvelope(
+		request,
+		"lowpass",
+		Math.max(0.06, shape.decay * 0.5)
+	);
+	const amp = context.createGain();
+	const stopTime = scheduleAdsr(
+		amp.gain,
+		startTime,
+		endTime,
+		velocityGain(request.velocity) * 0.38,
+		shape.attack,
+		shape.decay,
+		shape.sustain,
+		shape.release
+	);
+	filter.connect(amp);
+	amp.connect(request.output);
+
+	const baseMidi = request.pitch + settings.tune;
+	const baseFrequency = midiToHz(baseMidi);
+	const fineCents = request.instrument.detuneCents;
+	const oscillators: Array<OscillatorNode> = [];
+
+	const partials: Array<{
+		ratio: number;
+		gain: number;
+		spreadPan?: number;
+	}> = [
+		{ ratio: 0.5, gain: 0.52 },
+		{ ratio: 1, gain: 1, spreadPan: -0.45 },
+		{ ratio: 1.5, gain: 0.42 },
+		{ ratio: 2, gain: 0.62, spreadPan: 0.45 },
+		{ ratio: 3, gain: 0.24 },
+	];
+
+	for (const partial of partials) {
+		const frequency = baseFrequency * partial.ratio;
+		if (frequency > 16_000) {
+			continue;
+		}
+		const oscillator = context.createOscillator();
+		oscillator.type = "sine";
+		oscillator.frequency.value = frequency;
+		applyPitch(oscillator.detune, request.pitchPoints, fineCents);
+		const partialGain = context.createGain();
+		partialGain.gain.value = partial.gain;
+		oscillator.connect(partialGain);
+		partialGain.connect(filter);
+		oscillators.push(oscillator);
+
+		if (partial.spreadPan !== undefined && settings.spread > 1) {
+			const wideOscillator = context.createOscillator();
+			wideOscillator.type = "sine";
+			wideOscillator.frequency.value = frequency;
+			applyPitch(
+				wideOscillator.detune,
+				request.pitchPoints,
+				fineCents + Math.sign(partial.spreadPan) * settings.spread * 0.35
+			);
+			const wideGain = context.createGain();
+			wideGain.gain.value = partial.gain * 0.35;
+			const panner = context.createStereoPanner();
+			panner.pan.value = partial.spreadPan;
+			wideOscillator.connect(wideGain);
+			wideGain.connect(panner);
+			panner.connect(filter);
+			oscillators.push(wideOscillator);
+		}
+	}
+
+	// Percussive Hammond / M1 key-click transients
+	const clickPartials: Array<{ ratio: number; level: number; decay: number }> = [
+		{ ratio: 4, level: 0.24, decay: 0.014 },
+		{ ratio: 6, level: 0.14, decay: 0.009 },
+	];
+	for (const click of clickPartials) {
+		const frequency = baseFrequency * click.ratio;
+		if (frequency > 16_000) {
+			continue;
+		}
+		const oscillator = context.createOscillator();
+		oscillator.type = "sine";
+		oscillator.frequency.value = frequency;
+		applyPitch(oscillator.detune, request.pitchPoints, fineCents);
+		const clickGain = context.createGain();
+		clickGain.gain.setValueAtTime(click.level, startTime);
+		clickGain.gain.setTargetAtTime(0, startTime, click.decay);
+		oscillator.connect(clickGain);
+		clickGain.connect(filter);
+		oscillators.push(oscillator);
+	}
+
+	oscillators.forEach((oscillator) => {
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
+	});
+};
+
+/** TB-303 acid synth: saw/square blend through cascaded 24 dB resonant filters */
+const scheduleAcid303Voice = (request: VoiceRequest): void => {
+	const { context, settings, startTime, endTime } = request;
+	const shape = resolveShape(request);
+	const envelopeSeconds = Math.max(0.035, shape.decay * 0.35);
+	const primaryFilter = createFilterWithEnvelope(
+		request,
+		"lowpass",
+		envelopeSeconds
+	);
+	const secondaryFilter = createFilterWithEnvelope(
+		{
+			...request,
+			settings: {
+				...settings,
+				resonance: clamp(settings.resonance * 0.72, 0.5, 12),
+			},
+		},
+		"lowpass",
+		envelopeSeconds
+	);
+	const preClip = context.createWaveShaper();
+	preClip.curve = getSaturationCurve(1.4);
+
+	const amp = context.createGain();
+	const stopTime = scheduleAdsr(
+		amp.gain,
+		startTime,
+		endTime,
+		velocityGain(request.velocity) * 0.44,
+		shape.attack,
+		shape.decay,
+		shape.sustain,
+		shape.release
+	);
+	primaryFilter.connect(secondaryFilter);
+	secondaryFilter.connect(preClip);
+	preClip.connect(amp);
+	amp.connect(request.output);
+
+	const baseMidi = request.pitch + settings.tune;
+	const fineCents = request.instrument.detuneCents;
+	const oscillators: Array<OscillatorNode> = [];
+
+	const mainSaw = context.createOscillator();
+	mainSaw.type = "sawtooth";
+	mainSaw.frequency.value = midiToHz(baseMidi);
+	applyPitch(mainSaw.detune, request.pitchPoints, fineCents);
+	const sawGain = context.createGain();
+	sawGain.gain.value = 0.85;
+	mainSaw.connect(sawGain);
+	sawGain.connect(primaryFilter);
+	oscillators.push(mainSaw);
+
+	const squareBlend = context.createOscillator();
+	squareBlend.type = "square";
+	squareBlend.frequency.value = midiToHz(baseMidi);
+	applyPitch(
+		squareBlend.detune,
+		request.pitchPoints,
+		fineCents + clamp(settings.spread * 0.25, 0, 12)
+	);
+	const squareGain = context.createGain();
+	squareGain.gain.value = settings.spread > 1 ? 0.35 : 0.16;
+	squareBlend.connect(squareGain);
+	squareGain.connect(primaryFilter);
+	oscillators.push(squareBlend);
+
+	oscillators.forEach((oscillator) => {
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
+	});
+};
+
+/** TX81Z "Lately Bass" / UK Garage Donk FM bass */
+const scheduleFmBassVoice = (request: VoiceRequest): void => {
+	const { context, settings, startTime, endTime } = request;
+	const shape = resolveShape(request);
+	const frequency = midiToHz(request.pitch + settings.tune);
+	const velocity = clamp(request.velocity, 0.1, 1.4);
+	const fineCents = request.instrument.detuneCents;
+
+	const filter = createFilterWithEnvelope(
+		request,
+		"lowpass",
+		Math.max(0.05, shape.decay * 0.45)
+	);
+	const amp = context.createGain();
+	const stopTime = scheduleAdsr(
+		amp.gain,
+		startTime,
+		endTime,
+		velocityGain(velocity) * 0.56,
+		shape.attack,
+		shape.decay,
+		shape.sustain,
+		shape.release
+	);
+	filter.connect(amp);
+	amp.connect(request.output);
+
+	const carrier = context.createOscillator();
+	carrier.type = "sine";
+	carrier.frequency.value = frequency;
+	const modulator = context.createOscillator();
+	modulator.type = "sine";
+	modulator.frequency.value = frequency * 2;
+	const modulationDepth = context.createGain();
+	modulationDepth.gain.setValueAtTime(frequency * 5.2 * velocity, startTime);
+	modulationDepth.gain.setTargetAtTime(frequency * 0.22, startTime, 0.045);
+	modulator.connect(modulationDepth);
+	modulationDepth.connect(carrier.frequency);
+
+	const subOscillator = context.createOscillator();
+	subOscillator.type = "sine";
+	subOscillator.frequency.value = frequency;
+	const subGain = context.createGain();
+	subGain.gain.value = 0.28;
+	subOscillator.connect(subGain);
+	subGain.connect(filter);
+
+	const punchPartial = context.createOscillator();
+	punchPartial.type = "sine";
+	punchPartial.frequency.value = frequency * 3;
+	const punchGain = context.createGain();
+	punchGain.gain.setValueAtTime(0.16 * velocity, startTime);
+	punchGain.gain.setTargetAtTime(0, startTime, 0.022);
+	punchPartial.connect(punchGain);
+	punchGain.connect(filter);
+
+	applyPitch(carrier.detune, request.pitchPoints, fineCents);
+	applyPitch(modulator.detune, request.pitchPoints, fineCents);
+	applyPitch(subOscillator.detune, request.pitchPoints, fineCents);
+	applyPitch(punchPartial.detune, request.pitchPoints, fineCents);
+	carrier.connect(filter);
+
+	[carrier, modulator, subOscillator, punchPartial].forEach((oscillator) => {
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
+	});
+};
+
+/** Alpha Juno / Mentasm Rave Hoover: detuned stereo saws + sub with attack pitch-scoop */
+const scheduleHooverVoice = (request: VoiceRequest): void => {
+	const { context, settings, startTime, endTime } = request;
+	const shape = resolveShape(request);
+	const filter = createFilterWithEnvelope(
+		request,
+		"lowpass",
+		Math.max(0.08, shape.decay * 0.65)
+	);
+	const amp = context.createGain();
+	const stopTime = scheduleAdsr(
+		amp.gain,
+		startTime,
+		endTime,
+		velocityGain(request.velocity) * 0.36,
+		shape.attack,
+		shape.decay,
+		shape.sustain,
+		shape.release
+	);
+	filter.connect(amp);
+	amp.connect(request.output);
+
+	const baseMidi = request.pitch + settings.tune;
+	const fineCents = request.instrument.detuneCents;
+	const spread = Math.max(10, settings.spread);
+	const scoopEnd = startTime + Math.min(0.11, Math.max(0.03, (endTime - startTime) * 0.6));
+	const scoopRatio = Math.pow(2, -3.8 / 12);
+
+	const oscillators: Array<OscillatorNode> = [];
+	const sawCount = 5;
+	for (let index = 0; index < sawCount; index += 1) {
+		const position = (index / (sawCount - 1)) * 2 - 1;
+		const oscillator = context.createOscillator();
+		oscillator.type = "sawtooth";
+		const targetFrequency = midiToHz(baseMidi);
+		oscillator.frequency.setValueAtTime(targetFrequency * scoopRatio, startTime);
+		oscillator.frequency.exponentialRampToValueAtTime(targetFrequency, scoopEnd);
+		applyPitch(
+			oscillator.detune,
+			request.pitchPoints,
+			fineCents + position * spread
+		);
+		const gain = context.createGain();
+		gain.gain.value = 0.8 / Math.sqrt(sawCount);
+		const panner = context.createStereoPanner();
+		panner.pan.value = clamp(position * 0.85, -1, 1);
+		oscillator.connect(gain);
+		gain.connect(panner);
+		panner.connect(filter);
+		oscillators.push(oscillator);
+	}
+
+	// Sub square & upper octave saw
+	const extras: Array<{ type: OscillatorType; semitones: number; gain: number }> = [
+		{ type: "square", semitones: -12, gain: 0.36 },
+		{ type: "sawtooth", semitones: 12, gain: 0.24 },
+	];
+	for (const extra of extras) {
+		const oscillator = context.createOscillator();
+		oscillator.type = extra.type;
+		const targetFrequency = midiToHz(baseMidi + extra.semitones);
+		oscillator.frequency.setValueAtTime(targetFrequency * scoopRatio, startTime);
+		oscillator.frequency.exponentialRampToValueAtTime(targetFrequency, scoopEnd);
+		applyPitch(oscillator.detune, request.pitchPoints, fineCents);
+		const gain = context.createGain();
+		gain.gain.value = extra.gain;
+		oscillator.connect(gain);
+		gain.connect(filter);
+		oscillators.push(oscillator);
+	}
+
+	// Signature chorus-style PWM / pitch LFO
+	const lfo = context.createOscillator();
+	lfo.frequency.value = 4.4;
+	const lfoDepth = context.createGain();
+	lfoDepth.gain.value = 16;
+	lfo.connect(lfoDepth);
+	oscillators.forEach((oscillator) => {
+		lfoDepth.connect(oscillator.detune);
+	});
+	oscillators.push(lfo);
+
+	oscillators.forEach((oscillator) => {
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
+	});
+};
+
+/** Formant vocal chop / pad: detuned saws + breath routed through parallel vowel filters */
+const scheduleVocalChopVoice = (request: VoiceRequest): void => {
+	const { context, settings, startTime, endTime } = request;
+	const shape = resolveShape(request);
+	const filter = createFilterWithEnvelope(
+		request,
+		"lowpass",
+		Math.max(0.08, shape.decay * 0.8)
+	);
+	const amp = context.createGain();
+	const stopTime = scheduleAdsr(
+		amp.gain,
+		startTime,
+		endTime,
+		velocityGain(request.velocity) * 0.9,
+		shape.attack,
+		shape.decay,
+		shape.sustain,
+		shape.release
+	);
+	filter.connect(amp);
+	amp.connect(request.output);
+
+	const voiceSum = context.createGain();
+	voiceSum.gain.value = 1;
+
+	const formants: Array<{ frequency: number; q: number; gain: number }> = [
+		{ frequency: 730, q: 5.5, gain: 1 },
+		{ frequency: 1150, q: 7.2, gain: 0.72 },
+		{ frequency: 2650, q: 8.5, gain: 0.35 },
+	];
+	for (const spec of formants) {
+		const formant = context.createBiquadFilter();
+		formant.type = "bandpass";
+		formant.frequency.value = spec.frequency;
+		formant.Q.value = spec.q;
+		const formantGain = context.createGain();
+		formantGain.gain.value = spec.gain;
+		voiceSum.connect(formant);
+		formant.connect(formantGain);
+		formantGain.connect(filter);
+	}
+	const chest = context.createBiquadFilter();
+	chest.type = "lowpass";
+	chest.frequency.value = 420;
+	const chestGain = context.createGain();
+	chestGain.gain.value = 0.22;
+	voiceSum.connect(chest);
+	chest.connect(chestGain);
+	chestGain.connect(filter);
+
+	const baseMidi = request.pitch + settings.tune;
+	const fineCents = request.instrument.detuneCents;
+	const spread = Math.max(6, settings.spread * 0.6);
+	const oscillators: Array<OscillatorNode> = [];
+	const layers: Array<{
+		type: OscillatorType;
+		detune: number;
+		pan: number;
+		gain: number;
+	}> = [
+		{ type: "sawtooth", detune: -spread, pan: -0.45, gain: 0.34 },
+		{ type: "sawtooth", detune: 0, pan: 0, gain: 0.38 },
+		{ type: "sawtooth", detune: spread, pan: 0.45, gain: 0.34 },
+		{ type: "triangle", detune: 0, pan: 0, gain: 0.28 },
+	];
+
+	for (const layer of layers) {
+		const oscillator = context.createOscillator();
+		oscillator.type = layer.type;
+		oscillator.frequency.value = midiToHz(baseMidi);
+		applyPitch(
+			oscillator.detune,
+			request.pitchPoints,
+			fineCents + layer.detune
+		);
+		const gain = context.createGain();
+		gain.gain.value = layer.gain;
+		const panner = context.createStereoPanner();
+		panner.pan.value = layer.pan;
+		oscillator.connect(gain);
+		gain.connect(panner);
+		panner.connect(voiceSum);
+		oscillators.push(oscillator);
+	}
+
+	const lfo = context.createOscillator();
+	lfo.frequency.value = 5.2;
+	const lfoDepth = context.createGain();
+	lfoDepth.gain.setValueAtTime(0, startTime);
+	lfoDepth.gain.setValueAtTime(0, startTime + 0.16);
+	lfoDepth.gain.linearRampToValueAtTime(10, startTime + 0.42);
+	lfo.connect(lfoDepth);
+	oscillators.forEach((oscillator) => {
+		lfoDepth.connect(oscillator.detune);
+	});
+	oscillators.push(lfo);
+
+	// Soft breath air
+	const breath = context.createBufferSource();
+	breath.buffer = getNoiseBuffer(context);
+	breath.loop = true;
+	const breathFilter = context.createBiquadFilter();
+	breathFilter.type = "bandpass";
+	breathFilter.frequency.value = 3200;
+	breathFilter.Q.value = 0.8;
+	const breathGain = context.createGain();
+	breathGain.gain.value = 0.04;
+	breath.connect(breathFilter);
+	breathFilter.connect(breathGain);
+	breathGain.connect(filter);
+	breath.start(startTime);
+	breath.stop(stopTime);
+
+	oscillators.forEach((oscillator) => {
+		oscillator.start(startTime);
+		oscillator.stop(stopTime);
+	});
+};
+
 // ─── Sample engines ──────────────────────────────────────────────────────────
 
 const playBufferVoice = (
@@ -750,6 +1204,8 @@ const scheduleUserSampleVoice = (request: VoiceRequest): boolean => {
 
 // ─── Drum kits ───────────────────────────────────────────────────────────────
 
+type DrumStyle = "drumKit" | "breakKit" | "houseKit" | "gabberKit";
+
 interface DrumHit {
 	context: BaseAudioContext;
 	output: AudioNode;
@@ -757,7 +1213,7 @@ interface DrumHit {
 	velocity: number;
 	/** Pitch multiplier from the kit tune */
 	tune: number;
-	style: "drumKit" | "breakKit";
+	style: DrumStyle;
 }
 
 const connectChain = (nodes: Array<AudioNode>): void => {
@@ -868,6 +1324,35 @@ const metallicHit = (
 };
 
 const scheduleKick = (hit: DrumHit): void => {
+	if (hit.style === "gabberKit") {
+		// Brutal distorted gabber kick: fast pitch dive into heavy clipped body
+		tonalHit(hit, "triangle", 320, 54, 0.05, 1.05, 0.42, 7.5);
+		tonalHit(hit, "square", 160, 52, 0.05, 0.36, 0.34, 5);
+		noiseBurst(
+			hit,
+			[
+				{ type: "bandpass", frequency: 2800, q: 1 },
+				{ type: "highpass", frequency: 1400 },
+			],
+			0.55,
+			0.014
+		);
+		return;
+	}
+	if (hit.style === "houseKit") {
+		// Tight 909 four-on-the-floor club kick
+		tonalHit(hit, "sine", 185, 50, 0.055, 1.12, 0.38, 1.1);
+		noiseBurst(
+			hit,
+			[
+				{ type: "highpass", frequency: 2400 },
+				{ type: "lowpass", frequency: 8500 },
+			],
+			0.42,
+			0.011
+		);
+		return;
+	}
 	const isBreak = hit.style === "breakKit";
 	// Body: fast pitch drop into a round sub, lightly saturated
 	tonalHit(
@@ -897,6 +1382,35 @@ const scheduleKick = (hit: DrumHit): void => {
 };
 
 const scheduleSnare = (hit: DrumHit): void => {
+	if (hit.style === "gabberKit") {
+		tonalHit(hit, "triangle", 265, 180, 0.045, 0.68, 0.16, 2.5);
+		tonalHit(hit, "sine", 380, 340, 0.03, 0.24, 0.18);
+		noiseBurst(
+			hit,
+			[
+				{ type: "highpass", frequency: 1100 },
+				{ type: "peaking", frequency: 4400, q: 0.9 },
+				{ type: "lowpass", frequency: 12_000 },
+			],
+			0.92,
+			0.26
+		);
+		return;
+	}
+	if (hit.style === "houseKit") {
+		tonalHit(hit, "triangle", 195, 155, 0.04, 0.55, 0.11);
+		noiseBurst(
+			hit,
+			[
+				{ type: "highpass", frequency: 1800 },
+				{ type: "peaking", frequency: 4800, q: 0.9 },
+				{ type: "lowpass", frequency: 12_500 },
+			],
+			0.78,
+			0.16
+		);
+		return;
+	}
 	const isBreak = hit.style === "breakKit";
 	tonalHit(
 		hit,
@@ -924,12 +1438,15 @@ const scheduleSnare = (hit: DrumHit): void => {
 };
 
 const scheduleClap = (hit: DrumHit): void => {
-	const bursts = [0, 0.009, 0.019];
+	const bursts =
+		hit.style === "houseKit" ? [0, 0.01, 0.02, 0.03] : [0, 0.009, 0.019];
+	const bandpassFrequency =
+		hit.style === "gabberKit" ? 1600 : hit.style === "houseKit" ? 1250 : 1400;
 	bursts.forEach((offset) => {
 		noiseBurst(
 			{ ...hit, time: hit.time + offset },
 			[
-				{ type: "bandpass", frequency: 1400, q: 1.1 },
+				{ type: "bandpass", frequency: bandpassFrequency, q: 1.1 },
 				{ type: "highpass", frequency: 700 },
 			],
 			0.7,
@@ -937,18 +1454,29 @@ const scheduleClap = (hit: DrumHit): void => {
 		);
 	});
 	noiseBurst(
-		{ ...hit, time: hit.time + 0.026 },
+		{ ...hit, time: hit.time + (hit.style === "houseKit" ? 0.035 : 0.026) },
 		[
-			{ type: "bandpass", frequency: 1300, q: 0.9 },
+			{ type: "bandpass", frequency: bandpassFrequency - 100, q: 0.9 },
 			{ type: "highpass", frequency: 600 },
 		],
 		0.55,
-		hit.style === "breakKit" ? 0.14 : 0.2
+		hit.style === "breakKit" ? 0.14 : hit.style === "houseKit" ? 0.22 : 0.18
 	);
 };
 
+const resolveDrumStyle = (engine: ModernEngine): DrumStyle => {
+	if (
+		engine === "breakKit" ||
+		engine === "houseKit" ||
+		engine === "gabberKit"
+	) {
+		return engine;
+	}
+	return "drumKit";
+};
+
 const scheduleDrumKitHit = (request: VoiceRequest): void => {
-	const style = request.settings.engine === "breakKit" ? "breakKit" : "drumKit";
+	const style = resolveDrumStyle(request.settings.engine);
 	const hit: DrumHit = {
 		context: request.context,
 		output: request.output,
@@ -958,6 +1486,8 @@ const scheduleDrumKitHit = (request: VoiceRequest): void => {
 		style,
 	};
 	const isBreak = style === "breakKit";
+	const isHouse = style === "houseKit";
+	const isGabber = style === "gabberKit";
 	switch (Math.round(request.pitch)) {
 		case 0: {
 			scheduleKick(hit);
@@ -972,37 +1502,81 @@ const scheduleDrumKitHit = (request: VoiceRequest): void => {
 			noiseBurst(
 				hit,
 				[
-					{ type: "highpass", frequency: isBreak ? 6500 : 8000 },
+					{
+						type: "highpass",
+						frequency: isGabber ? 9500 : isHouse ? 8800 : isBreak ? 6500 : 8000,
+					},
 					{ type: "peaking", frequency: 11_000, q: 1 },
 				],
-				isBreak ? 0.42 : 0.36,
-				isBreak ? 0.065 : 0.045
+				isGabber ? 0.44 : isBreak ? 0.42 : 0.36,
+				isGabber ? 0.032 : isHouse ? 0.045 : isBreak ? 0.065 : 0.045
 			);
-			metallicHit(hit, isBreak ? 0.12 : 0.1, 0.04, 7000);
+			metallicHit(
+				hit,
+				isBreak ? 0.12 : 0.1,
+				isGabber ? 0.028 : 0.04,
+				isHouse ? 7600 : 7000
+			);
 			break;
 		}
 		case 3: {
 			noiseBurst(
 				hit,
-				[{ type: "highpass", frequency: isBreak ? 6000 : 7500 }],
-				0.34,
-				isBreak ? 0.42 : 0.34
+				[
+					{
+						type: "highpass",
+						frequency: isHouse ? 7800 : isBreak || isGabber ? 6000 : 7500,
+					},
+				],
+				isGabber ? 0.4 : 0.34,
+				isHouse ? 0.38 : isBreak ? 0.42 : 0.34
 			);
-			metallicHit(hit, 0.16, isBreak ? 0.4 : 0.3, 6500);
+			metallicHit(
+				hit,
+				isGabber ? 0.2 : 0.16,
+				isHouse ? 0.36 : isBreak ? 0.4 : 0.3,
+				6500
+			);
 			break;
 		}
 		case 4:
 		case 5: {
 			const isHigh = Math.round(request.pitch) === 5;
+			if (isHouse && isHigh) {
+				// 909 Rimshot
+				tonalHit(hit, "triangle", 440, 360, 0.018, 0.72, 0.045);
+				noiseBurst(
+					hit,
+					[{ type: "bandpass", frequency: 1650, q: 1.4 }],
+					0.45,
+					0.025
+				);
+				break;
+			}
+			if (isGabber && isHigh) {
+				// Pitched jungle ghost snare / rim
+				tonalHit(hit, "triangle", 310, 220, 0.025, 0.75, 0.08, 1.5);
+				noiseBurst(
+					hit,
+					[{ type: "bandpass", frequency: 2800, q: 1.1 }],
+					0.48,
+					0.075
+				);
+				break;
+			}
 			tonalHit(
 				hit,
 				"sine",
-				(isHigh ? 210 : 140) * (isBreak ? 1.1 : 1),
-				(isHigh ? 150 : 92) * (isBreak ? 1.1 : 1),
+				isGabber && !isHigh
+					? 165
+					: (isHigh ? 210 : 145) * (isBreak ? 1.1 : 1),
+				isGabber && !isHigh
+					? 48
+					: (isHigh ? 150 : 90) * (isBreak ? 1.1 : 1),
 				0.12,
 				0.85,
-				isBreak ? 0.26 : 0.34,
-				0.5
+				isGabber ? 0.34 : isBreak ? 0.26 : 0.34,
+				isGabber ? 2.5 : 0.5
 			);
 			noiseBurst(
 				hit,
@@ -1017,7 +1591,17 @@ const scheduleDrumKitHit = (request: VoiceRequest): void => {
 			break;
 		}
 		default: {
-			if (isBreak) {
+			if (isGabber) {
+				// Amen kick + snare chop layered with bright crash wash
+				scheduleKick({ ...hit, velocity: hit.velocity * 0.85 });
+				scheduleSnare({ ...hit, velocity: hit.velocity * 0.85 });
+				metallicHit(hit, 0.16, 0.7, 5000);
+			} else if (isHouse) {
+				// Shimmering 909 house ride
+				metallicHit(hit, 0.26, 0.85, 5200);
+				tonalHit(hit, "sine", 3400, 3320, 0.1, 0.08, 0.55);
+				noiseBurst(hit, [{ type: "highpass", frequency: 7500 }], 0.14, 0.55);
+			} else if (isBreak) {
 				// Ride: bell ping + shimmering wash
 				metallicHit(hit, 0.24, 0.9, 4500);
 				tonalHit(hit, "sine", 2950, 2900, 0.1, 0.08, 0.6);
@@ -1044,7 +1628,10 @@ const scheduleDrumKitHit = (request: VoiceRequest): void => {
 // ─── Entry point ─────────────────────────────────────────────────────────────
 
 export const isModernDrumEngine = (engine: ModernEngine): boolean =>
-	engine === "drumKit" || engine === "breakKit";
+	engine === "drumKit" ||
+	engine === "breakKit" ||
+	engine === "houseKit" ||
+	engine === "gabberKit";
 
 /**
  * Schedule one note on a modern engine. Returns false when the sound isn't
@@ -1064,6 +1651,26 @@ export const scheduleModernVoice = (request: VoiceRequest): boolean => {
 	}
 	if (engine === "ePiano" || engine === "bell") {
 		scheduleFmVoice(request, engine);
+		return true;
+	}
+	if (engine === "houseOrgan") {
+		scheduleHouseOrganVoice(request);
+		return true;
+	}
+	if (engine === "acid303") {
+		scheduleAcid303Voice(request);
+		return true;
+	}
+	if (engine === "fmBass") {
+		scheduleFmBassVoice(request);
+		return true;
+	}
+	if (engine === "hoover") {
+		scheduleHooverVoice(request);
+		return true;
+	}
+	if (engine === "vocalChop") {
+		scheduleVocalChopVoice(request);
 		return true;
 	}
 	const recipe = SYNTH_RECIPES[engine];
