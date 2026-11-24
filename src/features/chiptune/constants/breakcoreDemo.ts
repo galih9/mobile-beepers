@@ -24,8 +24,6 @@ const KICK = 0;
 const SNARE = 1;
 const RIDE = 2;
 const CRASH = 3;
-const LOW_TOM = 4;
-const HIGH_TOM = 5;
 const ZAP = 7;
 
 interface NoteOptions {
@@ -347,8 +345,8 @@ const amenPatterns: Array<Array<NoteEvent>> = [
 		n(2, SNARE, 1, { velocity: 0.7 }),
 		n(3, KICK, 1, { velocity: 0.85 }),
 		n(4, SNARE, 2, { velocity: 0.9, ratchet: 2 }),
-		n(6, HIGH_TOM, 1, { velocity: 0.8 }),
-		n(7, LOW_TOM, 1, { velocity: 0.8 }),
+		n(6, KICK, 1, { velocity: 0.9 }),
+		n(7, SNARE, 1, { velocity: 0.65 }),
 		n(8, SNARE, 4, { velocity: 0.85, ratchet: 6, bend: 3 }),
 		n(12, SNARE, 4, { velocity: 0.95, ratchet: 8, bend: 7 }),
 	],

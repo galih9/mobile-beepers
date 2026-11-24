@@ -30,11 +30,7 @@ describe("DemoSongBrowserDialog", () => {
 	it("renders the breakcore demos and supports category + search filtering", () => {
 		const onClose = vi.fn();
 		render(
-			<DemoSongBrowserDialog
-				isOpen
-				initialTab="demos"
-				onClose={onClose}
-			/>
+			<DemoSongBrowserDialog isOpen initialTab="demos" onClose={onClose} />
 		);
 
 		expect(screen.getByText("Demo Song & SFX Library")).toBeTruthy();
@@ -60,11 +56,7 @@ describe("DemoSongBrowserDialog", () => {
 	it("loads and plays a selected demo song and closes the modal", () => {
 		const onClose = vi.fn();
 		render(
-			<DemoSongBrowserDialog
-				isOpen
-				initialTab="demos"
-				onClose={onClose}
-			/>
+			<DemoSongBrowserDialog isOpen initialTab="demos" onClose={onClose} />
 		);
 
 		const battleHeading = screen.getByRole("heading", {
@@ -88,11 +80,7 @@ describe("DemoSongBrowserDialog", () => {
 	it("switches to Retro SFX tab and loads an SFX preset", () => {
 		const onClose = vi.fn();
 		render(
-			<DemoSongBrowserDialog
-				isOpen
-				initialTab="demos"
-				onClose={onClose}
-			/>
+			<DemoSongBrowserDialog isOpen initialTab="demos" onClose={onClose} />
 		);
 
 		const sfxTab = screen.getByRole("button", { name: /Retro SFX/i });
@@ -113,6 +101,46 @@ describe("DemoSongBrowserDialog", () => {
 		expect(state.studioMode).toBe("sfx");
 		expect(state.song.title).toBe("Ray Gun Shoot");
 		expect(state.isPlaying).toBe(false);
+		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows all modern mode demos and loads a bass-and-drums breakcore demo", () => {
+		useChiptuneStore.getState().setStudioMode("modern");
+		const onClose = vi.fn();
+		render(
+			<DemoSongBrowserDialog isOpen initialTab="demos" onClose={onClose} />
+		);
+
+		expect(
+			screen.getByRole("heading", { name: "Afterglow Circuit" })
+		).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "Amen & Reese 174" })
+		).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "Gabber Chop 185" })
+		).toBeTruthy();
+		expect(
+			screen.getByRole("heading", { name: "808 Half-Time 172" })
+		).toBeTruthy();
+		expect(screen.getByText("Showing 4 of 4")).toBeTruthy();
+
+		const gabberHeading = screen.getByRole("heading", {
+			name: "Gabber Chop 185",
+		});
+		const card = gabberHeading.closest("article");
+		expect(card).not.toBeNull();
+
+		const loadAndPlayButton = within(card as HTMLElement).getByRole("button", {
+			name: /Load & Play/i,
+		});
+		fireEvent.click(loadAndPlayButton);
+
+		const state = useChiptuneStore.getState();
+		expect(state.studioMode).toBe("modern");
+		expect(state.song.title).toBe("Gabber Chop 185");
+		expect(state.song.bpm).toBe(185);
+		expect(state.isPlaying).toBe(true);
 		expect(onClose).toHaveBeenCalledTimes(1);
 	});
 });

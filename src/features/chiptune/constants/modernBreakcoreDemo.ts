@@ -31,8 +31,6 @@ const KICK = 0;
 const SNARE = 1;
 const HAT = 2;
 const OPEN_HAT = 3;
-const LOW_TOM = 4;
-const HIGH_TOM = 5;
 const RIDE = 7;
 
 let noteCounter = 0;
@@ -372,7 +370,7 @@ const amenB = (): Array<NoteEvent> => [
 	...hats(0.38, RIDE),
 ];
 
-/** End-of-cycle fill: amen first half, then a snare / tom run */
+/** End-of-cycle fill: amen first half, then a kick / snare run */
 const fill = (): Array<NoteEvent> => [
 	n(0, KICK, 1, 1),
 	n(2, KICK, 1, 0.85),
@@ -380,10 +378,10 @@ const fill = (): Array<NoteEvent> => [
 	n(7, SNARE, 1, 0.45),
 	n(8, SNARE, 1, 0.6),
 	n(9, SNARE, 1, 0.65),
-	n(10, HIGH_TOM, 1, 0.75),
-	n(11, HIGH_TOM, 1, 0.8),
+	n(10, KICK, 1, 0.85),
+	n(11, SNARE, 1, 0.72),
 	n(12, SNARE, 1, 0.85),
-	n(13, LOW_TOM, 1, 0.85),
+	n(13, KICK, 1, 0.82),
 	n(14, SNARE, 1, 0.9),
 	n(15, SNARE, 1, 0.98),
 	...hats(0.34, HAT).filter((note) => note.step < 8),

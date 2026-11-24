@@ -13,6 +13,7 @@ import {
 	sampleNoteNameToMidi,
 } from "../audio/modern/sampleLibrary";
 import {
+	ALL_DEMO_SONGS,
 	DEMO_SONGS,
 	getDemoSongMetadata,
 	MODERN_DEMO_SONGS,
@@ -20,12 +21,18 @@ import {
 import { getPresetConfigurationById } from "../constants/instrumentPresets";
 import { modernAfterglowSong } from "../constants/modernBreakcoreDemo";
 import {
+	modernAmenReeseSong,
+	modernGabberChopSong,
+	modernHalftime808Song,
+} from "../constants/modernBreakcoreRhythmDemos";
+import {
 	getModernPresetById,
 	MODERN_INSTRUMENT_PRESETS,
 } from "../constants/modernPresets";
 import { createBlankModernProject } from "../constants/modernProject";
 import {
 	buildPianoRollRows,
+	isMidiNoteInScale,
 	MODERN_DRUM_PAD_DEFINITIONS,
 } from "../constants/scalesAndNotes";
 import { useChiptuneStore } from "../store/useChiptuneStore";
@@ -137,12 +144,129 @@ describe("modern presets and demo", () => {
 	});
 
 	it("modern demos live apart from the chiptune demo list", () => {
-		expect(MODERN_DEMO_SONGS).toContain(modernAfterglowSong);
+		const rhythmDemos = [
+			modernAmenReeseSong,
+			modernGabberChopSong,
+			modernHalftime808Song,
+		];
+		expect(MODERN_DEMO_SONGS).toHaveLength(4);
+		expect(MODERN_DEMO_SONGS[0]).toBe(modernAfterglowSong);
 		expect(DEMO_SONGS).not.toContain(modernAfterglowSong);
 		expect(getDemoSongMetadata(modernAfterglowSong.id).category).toBe(
 			"breakcore"
 		);
+		for (const demo of rhythmDemos) {
+			expect(MODERN_DEMO_SONGS).toContain(demo);
+			expect(DEMO_SONGS).not.toContain(demo);
+			expect(getDemoSongMetadata(demo.id).category).toBe("breakcore");
+		}
 	});
+
+	it.each([
+		{
+			song: modernAmenReeseSong,
+			sections: ["Roller", "Overdrive"],
+		},
+		{
+			song: modernGabberChopSong,
+			sections: ["Stomp", "Riot"],
+		},
+		{
+			song: modernHalftime808Song,
+			sections: ["Weight", "Shatter"],
+		},
+	])(
+		"$song.title is a valid bass-and-drums-only modern breakcore loop",
+		({ song, sections }) => {
+			const stepsPerBar = song.beatsPerBar * song.stepsPerBeat;
+			expect(song.engine).toBe("modern");
+			expect(songUsesModernRack(song)).toBe(true);
+			expect(song.totalBars).toBe(32);
+			expect(song.sections?.map((section) => section.name)).toEqual(sections);
+			expect(song.sections).toEqual([
+				expect.objectContaining({ startBar: 0, endBar: 15 }),
+				expect.objectContaining({ startBar: 16, endBar: 31 }),
+			]);
+
+			const noteIds = new Set<string>();
+			let bassNoteCount = 0;
+			let kickCount = 0;
+			let snareCount = 0;
+
+			for (const channel of song.channels) {
+				const preset = getModernPresetById(channel.instrument.presetId);
+				expect(preset).toBeDefined();
+				expect(channel.instrument.modern).toBeDefined();
+				expect(channel.barSequence).toHaveLength(song.totalBars);
+
+				if (channel.type === "pitch") {
+					expect(preset?.group).toBe("bass");
+				} else {
+					expect(preset?.group).toBe("drums");
+				}
+
+				for (const patternIndex of channel.barSequence) {
+					if (patternIndex > 0) {
+						expect(channel.patterns[String(patternIndex)]).toBeDefined();
+					}
+				}
+
+				for (const pattern of Object.values(channel.patterns)) {
+					for (const note of pattern.notes) {
+						expect(noteIds.has(note.id)).toBe(false);
+						noteIds.add(note.id);
+						expect(note.step).toBeGreaterThanOrEqual(0);
+						expect(note.duration).toBeGreaterThanOrEqual(1);
+						expect(note.step + note.duration).toBeLessThanOrEqual(stepsPerBar);
+						expect(note.velocity).toBeGreaterThanOrEqual(0.1);
+						expect(note.velocity).toBeLessThanOrEqual(1);
+						expect(note.pitchBend).toBe(0);
+
+						if (channel.type === "pitch") {
+							bassNoteCount += 1;
+							expect(note.pitch).toBeGreaterThanOrEqual(36);
+							expect(note.pitch).toBeLessThanOrEqual(60);
+							expect(
+								isMidiNoteInScale(note.pitch, song.rootKey, song.scale)
+							).toBe(true);
+							if (note.articulation === "legato") {
+								expect(
+									pattern.notes.some(
+										(other) =>
+											other !== note &&
+											other.step < note.step &&
+											other.step + other.duration >= note.step &&
+											other.pitch !== note.pitch
+									)
+								).toBe(true);
+							}
+						} else {
+							expect(note.pitch).toBeGreaterThanOrEqual(0);
+							expect(note.pitch).toBeLessThanOrEqual(7);
+							if (note.pitch === 0) {
+								kickCount += 1;
+							}
+							if (note.pitch === 1) {
+								snareCount += 1;
+							}
+						}
+					}
+				}
+			}
+
+			expect(bassNoteCount).toBeGreaterThan(0);
+			expect(kickCount).toBeGreaterThan(0);
+			expect(snareCount).toBeGreaterThan(0);
+			expect(getModernTailSeconds(song)).toBeGreaterThan(0.5);
+			expect(renderSongToMidiBytes(song).length).toBeGreaterThan(100);
+
+			useChiptuneStore.getState().loadDemoSong(song.id);
+			const state = useChiptuneStore.getState();
+			expect(state.studioMode).toBe("modern");
+			expect(state.song.title).toBe(song.title);
+			expect(state.song.bpm).toBe(song.bpm);
+		}
+	);
 
 	it("Afterglow Circuit is a valid, clean-lead 32-bar loop", () => {
 		const song = modernAfterglowSong;
@@ -189,6 +313,27 @@ describe("modern presets and demo", () => {
 			"pitch",
 			"drum",
 		]);
+	});
+
+	it("omits LTOM (4) and HTOM (5) from all demo song drum tracks", () => {
+		for (const song of ALL_DEMO_SONGS) {
+			for (const channel of song.channels) {
+				if (
+					channel.type !== "drum" ||
+					channel.instrument.presetId === "cinematic-perc-kit"
+				) {
+					continue;
+				}
+				for (const pattern of Object.values(channel.patterns)) {
+					for (const note of pattern.notes) {
+						expect(
+							note.pitch === 4 || note.pitch === 5,
+							`${song.title} / ${channel.name} pattern ${pattern.index} step ${note.step} has tom pitch ${note.pitch}`
+						).toBe(false);
+					}
+				}
+			}
+		}
 	});
 });
 

@@ -36,8 +36,6 @@ const KICK = 0;
 const SNARE = 1;
 const HAT = 2;
 const CRASH = 3;
-const LOW_TOM = 4;
-const HIGH_TOM = 5;
 const OPEN_HAT = 6;
 const CHOP = 7;
 
@@ -452,17 +450,17 @@ const raptureGroove = (): Array<NoteEvent> => [
 	...[6, 14].map((step) => n(step, OPEN_HAT, 1, { velocity: 0.5 })),
 ];
 
-/** 8th-bar fill: toms then a 32nd snare roll (drum-only stutter) */
+/** 8th-bar fill: kick / snare chop then a 32nd snare roll (drum-only stutter) */
 const fill = (): Array<NoteEvent> => [
 	n(0, KICK, 1, { velocity: 1 }),
 	n(2, KICK, 1, { velocity: 0.85 }),
 	n(4, SNARE, 1, { velocity: 1 }),
 	n(6, KICK, 1, { velocity: 0.85 }),
 	n(7, SNARE, 1, { velocity: 0.5 }),
-	n(8, HIGH_TOM, 1, { velocity: 0.85 }),
-	n(9, HIGH_TOM, 1, { velocity: 0.7 }),
-	n(10, LOW_TOM, 1, { velocity: 0.9 }),
-	n(11, LOW_TOM, 1, { velocity: 0.75 }),
+	n(8, SNARE, 1, { velocity: 0.85 }),
+	n(9, SNARE, 1, { velocity: 0.55 }),
+	n(10, KICK, 1, { velocity: 0.9 }),
+	n(11, SNARE, 1, { velocity: 0.72 }),
 	n(12, SNARE, 4, { velocity: 0.78, ratchet: 6 }),
 	...[0, 2, 4, 6].map((step) => n(step, HAT, 1, { velocity: 0.5 })),
 ];

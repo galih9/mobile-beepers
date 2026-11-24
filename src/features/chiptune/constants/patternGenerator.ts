@@ -53,7 +53,7 @@ export const generateProceduralPatternNotes = (
 				notes.push(createSongNote(step, 2, 1, 0, 0.65));
 			}
 			if (step === stepsPerBar - 2 && Math.random() > 0.4) {
-				notes.push(createSongNote(step, 5, 1, 0, 0.8));
+				notes.push(createSongNote(step, 1, 1, 0, 0.65));
 			}
 		}
 		return notes;

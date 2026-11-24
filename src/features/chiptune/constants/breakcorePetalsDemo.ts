@@ -47,8 +47,6 @@ const KICK = 0;
 const SNARE = 1;
 const HAT = 2;
 const CRASH = 3;
-const LOW_TOM = 4;
-const HIGH_TOM = 5;
 
 interface NoteOptions {
 	velocity?: number;
@@ -144,14 +142,7 @@ const Bb5 = 82;
 const C6 = 84;
 
 // ─── Harmony ─────────────────────────────────────────────────────────────────
-type ChordName =
-	| "Ebmaj7"
-	| "F"
-	| "Dm7"
-	| "Gm"
-	| "Cm7"
-	| "Bbmaj7"
-	| "D7";
+type ChordName = "Ebmaj7" | "F" | "Dm7" | "Gm" | "Cm7" | "Bbmaj7" | "D7";
 
 interface ChordShape {
 	/** Pitch classes that count as chord tones on strong steps (incl. 7ths / 9ths) */
@@ -637,17 +628,17 @@ const amenGhost = (): Array<NoteEvent> => [
 	n(13, SNARE, 1, { velocity: 0.35 }),
 ];
 
-/** 4th-bar fill: toms + snare */
-const tomFill = (): Array<NoteEvent> => [
+/** 4th-bar fill: kick + snare run */
+const snareFill = (): Array<NoteEvent> => [
 	n(0, KICK, 1, { velocity: 1 }),
 	n(2, KICK, 1, { velocity: 0.85 }),
 	n(4, SNARE, 1, { velocity: 1 }),
 	n(7, SNARE, 1, { velocity: 0.5 }),
 	n(8, KICK, 1, { velocity: 0.9 }),
 	n(10, SNARE, 1, { velocity: 0.8 }),
-	n(12, HIGH_TOM, 1, { velocity: 0.8 }),
-	n(13, HIGH_TOM, 1, { velocity: 0.7 }),
-	n(14, LOW_TOM, 1, { velocity: 0.85 }),
+	n(12, SNARE, 1, { velocity: 0.8 }),
+	n(13, KICK, 1, { velocity: 0.82 }),
+	n(14, SNARE, 1, { velocity: 0.86 }),
 	n(15, SNARE, 1, { velocity: 0.9 }),
 	...[0, 2, 4, 6, 8, 10].map((step) => n(step, HAT, 1, { velocity: 0.4 })),
 ];
@@ -672,7 +663,7 @@ const breaks = buildTrack(
 			return snareRun();
 		}
 		if (local === 7) {
-			return tomFill();
+			return snareFill();
 		}
 		if (inPetals(bar)) {
 			return [amenA, amenB, amenA, amenChop][local % 4]!();

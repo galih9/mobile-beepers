@@ -6,6 +6,11 @@ import { breakcoreShatteredHaloSong } from "./breakcoreShatteredHaloDemo";
 import { mainMenuAmbienceSong } from "./mainMenuAmbienceDemo";
 import { modernAfterglowSong } from "./modernBreakcoreDemo";
 import {
+	modernAmenReeseSong,
+	modernGabberChopSong,
+	modernHalftime808Song,
+} from "./modernBreakcoreRhythmDemos";
+import {
 	CHANNEL_COLOR_PALETTE,
 	createBlankSongProject,
 	generateProceduralPatternNotes,
@@ -44,6 +49,27 @@ export const DEMO_SONG_METADATA: Record<string, DemoSongMetadata> = {
 			"174 BPM D-minor breakcore in the modern engine (sewerslvt / hkmori mood): sampled grand-piano hook, pumping dream pad, glass bells, sampled string counter-line, sub → reese bass and programmed jungle / crushed amen breaks. Sections: Glow 1-16, Surge 17-32. No stutters or pitch bends.",
 		accentColor: "#a78bfa",
 		featured: true,
+	},
+	"demo-modern-amen-reese-174": {
+		category: "breakcore",
+		badge: "Modern · Bass & Breaks",
+		description:
+			"174 BPM F-minor breakcore rhythm-and-bass template (no lead notes): sidechained Sub → Reese bass over Jungle Breaks and Crushed Amen chops with snare rolls. Sections: Roller 1-16, Overdrive 17-32.",
+		accentColor: "#38bdf8",
+	},
+	"demo-modern-gabber-chop-185": {
+		category: "breakcore",
+		badge: "Modern · Hardcore Rhythm",
+		description:
+			"185 BPM C#-minor hardcore breakcore rhythm-and-bass template (no lead notes): Neuro Reese and Acid 303 bass under a slammed Gabber Kick and high-passed Sliced Amen breaks. Sections: Stomp 1-16, Riot 17-32.",
+		accentColor: "#ef4444",
+	},
+	"demo-modern-808-halftime-172": {
+		category: "breakcore",
+		badge: "Modern · 808 & Breaks",
+		description:
+			"172 BPM G-minor 808 breakcore rhythm-and-bass template (no lead notes): gliding Distorted 808 and mid-range Reese Growl locked to Half-Time → Shattered Heavy Breaks and Sub Kick. Sections: Weight 1-16, Shatter 17-32.",
+		accentColor: "#fb7185",
 	},
 	"demo-breakcore-battle-v1": {
 		category: "breakcore",
@@ -104,7 +130,12 @@ export const DEMO_SONGS: Array<SongProject> = [
 ];
 
 /** Demos for the modern music maker (Settings → Mode → Modern). */
-export const MODERN_DEMO_SONGS: Array<SongProject> = [modernAfterglowSong];
+export const MODERN_DEMO_SONGS: Array<SongProject> = [
+	modernAfterglowSong,
+	modernAmenReeseSong,
+	modernGabberChopSong,
+	modernHalftime808Song,
+];
 
 /** Every built-in demo, both engines (used to look demos up by id). */
 export const ALL_DEMO_SONGS: Array<SongProject> = [

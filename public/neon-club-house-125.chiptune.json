@@ -1823,27 +1823,11 @@
               "pitchBend": 0
             },
             {
-              "id": "note-12-5-5w23q",
-              "step": 12,
-              "pitch": 5,
-              "duration": 1,
-              "velocity": 0.8,
-              "pitchBend": 0
-            },
-            {
               "id": "note-13-1-6frij",
               "step": 13,
               "pitch": 1,
               "duration": 1,
               "velocity": 0.78,
-              "pitchBend": 0
-            },
-            {
-              "id": "note-14-4-sy093",
-              "step": 14,
-              "pitch": 4,
-              "duration": 1,
-              "velocity": 0.86,
               "pitchBend": 0
             },
             {
@@ -2017,14 +2001,6 @@
               "pitchBend": 0
             },
             {
-              "id": "note-7-5-5d3s8",
-              "step": 7,
-              "pitch": 5,
-              "duration": 1,
-              "velocity": 0.72,
-              "pitchBend": 0
-            },
-            {
               "id": "note-8-0-wufu5",
               "step": 8,
               "pitch": 0,
@@ -2057,14 +2033,6 @@
               "pitchBend": 0
             },
             {
-              "id": "note-11-5-fvwlo",
-              "step": 11,
-              "pitch": 5,
-              "duration": 1,
-              "velocity": 0.86,
-              "pitchBend": 0
-            },
-            {
               "id": "note-12-0-oc4dz",
               "step": 12,
               "pitch": 0,
@@ -2094,14 +2062,6 @@
               "pitch": 6,
               "duration": 1,
               "velocity": 0.96,
-              "pitchBend": 0
-            },
-            {
-              "id": "note-14-4-u5nh9",
-              "step": 14,
-              "pitch": 4,
-              "duration": 1,
-              "velocity": 0.92,
               "pitchBend": 0
             },
             {
@@ -2190,14 +2150,6 @@
               "pitchBend": 0
             },
             {
-              "id": "note-7-5-uqfqp",
-              "step": 7,
-              "pitch": 5,
-              "duration": 1,
-              "velocity": 0.72,
-              "pitchBend": 0
-            },
-            {
               "id": "note-8-0-d44wg",
               "step": 8,
               "pitch": 0,
@@ -2219,14 +2171,6 @@
               "pitch": 3,
               "duration": 1,
               "velocity": 0.86,
-              "pitchBend": 0
-            },
-            {
-              "id": "note-11-4-styta",
-              "step": 11,
-              "pitch": 4,
-              "duration": 1,
-              "velocity": 0.76,
               "pitchBend": 0
             },
             {

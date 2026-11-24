@@ -29,8 +29,6 @@ const KICK = 0;
 const SNARE = 1;
 const HAT = 2;
 const OPEN_HAT = 3;
-const LOW_TOM = 4;
-const HIGH_TOM = 5;
 const ZAP = 7;
 
 interface NoteOptions {
@@ -310,10 +308,22 @@ const stabPatterns = [
 
 // ─── Glitch arp (soft 16ths, tucked under the lead) ──────────────────────────
 const ARP_SHAPE: Array<[number, number]> = [
-	[0, 0], [1, 0], [2, 0], [0, 1],
-	[2, 0], [1, 0], [0, 0], [1, 0],
-	[2, 0], [0, 1], [1, 1], [0, 1],
-	[2, 0], [1, 0], [2, 0], [0, 1],
+	[0, 0],
+	[1, 0],
+	[2, 0],
+	[0, 1],
+	[2, 0],
+	[1, 0],
+	[0, 0],
+	[1, 0],
+	[2, 0],
+	[0, 1],
+	[1, 1],
+	[0, 1],
+	[2, 0],
+	[1, 0],
+	[2, 0],
+	[0, 1],
 ];
 
 const arpBar = (chord: ChordShape): Array<NoteEvent> =>
@@ -421,7 +431,7 @@ const amenPatterns: Array<Array<NoteEvent>> = [
 		n(14, SNARE, 2, { velocity: 0.7, ratchet: 2 }),
 		...hats8ths(0.38),
 	],
-	// 4: small 4th-bar fill (toms + snare flam)
+	// 4: small 4th-bar fill (kick + snare run)
 	[
 		n(0, KICK, 1, { velocity: 1 }),
 		n(2, KICK, 1, { velocity: 0.85 }),
@@ -429,9 +439,9 @@ const amenPatterns: Array<Array<NoteEvent>> = [
 		n(7, SNARE, 1, { velocity: 0.5 }),
 		n(8, KICK, 1, { velocity: 0.9 }),
 		n(10, SNARE, 1, { velocity: 0.8 }),
-		n(12, HIGH_TOM, 1, { velocity: 0.8 }),
-		n(13, HIGH_TOM, 1, { velocity: 0.7 }),
-		n(14, LOW_TOM, 1, { velocity: 0.85 }),
+		n(12, SNARE, 1, { velocity: 0.82 }),
+		n(13, KICK, 1, { velocity: 0.82 }),
+		n(14, SNARE, 1, { velocity: 0.88 }),
 		n(15, SNARE, 1, { velocity: 0.9 }),
 		...[0, 2, 4, 6, 8, 10].map((step) => n(step, HAT, 1, { velocity: 0.4 })),
 	],
@@ -530,13 +540,22 @@ const harmonySeq = [
 const amenSeq = [
 	// Section 1
 	...cycle([1, 2, 1, 4], 12),
-	1, 2, 1, 5,
+	1,
+	2,
+	1,
+	5,
 	// Section 2
 	...cycle([1, 3, 2, 4], 12),
-	1, 3, 2, 5,
+	1,
+	3,
+	2,
+	5,
 	// Section 3
 	...cycle([6, 3, 6, 4], 12),
-	6, 3, 6, 5,
+	6,
+	3,
+	6,
+	5,
 ];
 
 const kickSeq = [
